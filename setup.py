@@ -8,7 +8,7 @@ from setuptools import setup
 __author__ = 'ASU'
 
 # Bump up this version
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 
 basedir = path.abspath(path.dirname(__file__))
 
@@ -17,7 +17,7 @@ with open(path.join(basedir, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 install_requires = ['pyxtension>=1.13.15;python_version>="3.6"', 'typing-extensions>=3.10.0.0',
-                    'dateparser>=1.0.0'
+                    'dateparser>=1.0.0', 'pytz>=2020.1'
                     ]
 
 print("List of dependencies : {0}".format(str(install_requires)))
@@ -59,6 +59,7 @@ parameters = dict(
         'License :: OSI Approved :: Apache Software License',
 
         # Specify the Python versions you support basedir.
+        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: Implementation :: CPython",
@@ -66,7 +67,7 @@ parameters = dict(
     ],
 
     # What does your project relate to?
-    keywords='logging elasticsearch handler log instrumentation',
+    keywords='timestamp time date datetime ISO 8601',
 
     # You can just specify the packages manually basedir if your project is
     # simple. Or you can use find_packages().
