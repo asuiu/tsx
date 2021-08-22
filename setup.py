@@ -8,7 +8,7 @@ from setuptools import setup
 __author__ = 'ASU'
 
 # Bump up this version
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 
 basedir = path.abspath(path.dirname(__file__))
 
@@ -16,8 +16,10 @@ basedir = path.abspath(path.dirname(__file__))
 with open(path.join(basedir, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-install_requires = ['pyxtension>=1.13.15;python_version>="3.6"', 'typing-extensions>=3.10.0.0',
-                    'dateparser>=1.0.0', 'pytz>=2020.1'
+install_requires = ['pyxtension>=1.13.15;python_version>="3.6"',
+                    'typing-extensions>=3.7.4',
+                    'dateparser>=1.0.0',
+                    'pytz>=2020.1'
                     ]
 
 print("List of dependencies : {0}".format(str(install_requires)))
