@@ -7,6 +7,9 @@ Under the hood, it uses external dateparser library that's fully compatible with
 
 It also handles properly the Daylight Saving Time (summer time).  
 
+### Installation
+`pip pinstall tsx`
+
 ### Usage:
 The library is pretty simple, its central class is `TS`, which inhertis Python builtin `float`, 
 so every timestamp in fact is a float representing number of seconds since Epoch.
