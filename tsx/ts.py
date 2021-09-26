@@ -33,7 +33,7 @@ class TS(float):
         return int(TS.now_dt().timestamp() * 1000)
 
     @classmethod
-    def now(cls):
+    def now(cls) -> 'TS':
         return cls(cls.now_ms(), prec="ms")
 
     @staticmethod

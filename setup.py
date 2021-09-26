@@ -8,7 +8,7 @@ from setuptools import setup
 __author__ = 'ASU'
 
 # Bump up this version
-VERSION = '0.0.3'
+VERSION = '0.0.4'
 
 basedir = path.abspath(path.dirname(__file__))
 
