@@ -135,6 +135,11 @@ class TestTS(TestCase):
         ts = TS(ts=self.INT_BASE_TS)
         self.assertEqual(ts.as_iso_date, "2018-02-28")
 
+    def test_as_iso_date_basic(self):
+        ts = TS(ts=self.INT_BASE_TS)
+        self.assertEqual(ts.as_iso_date_basic, "20180228")
+        self.assertEqual(ts.as_file_date, "20180228")
+
     def test_repr(self):
         ts = TS(ts=self.INT_BASE_TS)
         self.assertEqual(repr(ts), "TS('2018-02-28T22:00:00Z')")

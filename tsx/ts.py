@@ -37,7 +37,7 @@ class TS(float):
         return cls(cls.now_ms(), prec="ms")
 
     @classmethod
-    def from_iso(cls, ts: str, utc:bool=True) -> 'TS':
+    def from_iso(cls, ts: str, utc: bool = True) -> 'TS':
         """
         Attention: if timestamp has TZ info, it will ignore the utc parameter
         This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
@@ -93,8 +93,16 @@ class TS(float):
 
     @property
     def as_iso_date(self) -> str:
+        """ Returns Extended ISO date format """
         dt = datetime.fromtimestamp(self, tz=timezone.utc)
         s = dt.strftime("%Y-%m-%d")
+        return s
+
+    @property
+    def as_iso_date_basic(self) -> str:
+        """ Returns Basic ISO date format """
+        dt = datetime.fromtimestamp(self, tz=timezone.utc)
+        s = dt.strftime("%Y%m%d")
         return s
 
     def as_iso_tz(self, tz: Union[str, tzinfo]) -> str:
@@ -106,16 +114,13 @@ class TS(float):
         return s
 
     @property
-    def as_file_ts(self) -> str:
+    def as_iso_basic(self) -> str:
         dt = datetime.fromtimestamp(self, tz=timezone.utc)
         s = dt.strftime("%Y%m%d-%H%M%S")
         return s
 
-    @property
-    def as_file_date(self) -> str:
-        dt = datetime.fromtimestamp(self, tz=timezone.utc)
-        s = dt.strftime("%Y%m%d")
-        return s
+    as_file_ts = as_iso_basic
+    as_file_date = as_iso_date_basic
 
     @property
     def as_ms(self) -> int:
