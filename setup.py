@@ -8,7 +8,7 @@ from setuptools import setup
 __author__ = 'ASU'
 
 # Bump up this version
-VERSION = '0.0.4'
+VERSION = '0.0.5'
 
 basedir = path.abspath(path.dirname(__file__))
 
@@ -18,7 +18,7 @@ with open(path.join(basedir, 'README.md'), encoding='utf-8') as f:
 
 install_requires = ['pyxtension>=1.13.15;python_version>="3.6"',
                     'typing-extensions>=3.7.4',
-                    'dateparser>=1.0.0',
+                    'python-dateutil>=2.8.2',
                     'pytz>=2020.1'
                     ]
 

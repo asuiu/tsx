@@ -139,6 +139,25 @@ class TestTS(TestCase):
         ts = TS(ts=self.INT_BASE_TS)
         self.assertEqual(repr(ts), "TS('2018-02-28T22:00:00Z')")
 
+    def test_from_iso(self):
+        ts = TS.from_iso("2018-02-28")
+        self.assertEqual(ts, TS('2018-02-28T00:00:00Z'))
+        ts = TS.from_iso("2018-02-28", utc=False)
+        self.assertEqual(ts, TS('2018-02-28T00:00:00'))
+
+        ts = TS.from_iso("20180228")
+        self.assertEqual(ts, TS('2018-02-28T00:00:00Z'))
+
+        ts = TS.from_iso("2018-02-28T22:00:00+00:00")
+        self.assertEqual(ts, TS('2018-02-28T22:00:00Z'))
+
+        ts = TS.from_iso("2018-02-28T00:00:00+02:00")
+        self.assertEqual(ts, TS('2018-02-27T22:00:00Z'))
+        ts = TS.from_iso("2018")
+        self.assertEqual(ts, TS('2018-01-01T00:00:00Z'))
+        ts = TS.from_iso("2018-02")
+        self.assertEqual(ts, TS('2018-02-01T00:00:00Z'))
+
 
 if __name__ == '__main__':
     unittest.main()

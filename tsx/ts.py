@@ -12,11 +12,11 @@ from numbers import Integral, Real
 from typing import Union
 
 import pytz
-from dateutil.parser import parse as parse_date
+from dateutil import parser as date_util_parser
 from pyxtension import validate
 from typing_extensions import Literal
 
-
+DEFAULT_ISO_PARSER = date_util_parser.isoparser()
 class TS(float):
     """
     Represents Unix timestamp in seconds since Epoch
@@ -35,6 +35,19 @@ class TS(float):
     @classmethod
     def now(cls) -> 'TS':
         return cls(cls.now_ms(), prec="ms")
+
+    @classmethod
+    def from_iso(cls, ts: str, utc:bool=True) -> 'TS':
+        """
+        Attention: if timestamp has TZ info, it will ignore the utc parameter
+        This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
+        It will allow any of ISO-8601 formats, but will not allow any other formats
+        """
+        dt = date_util_parser.isoparser().isoparse(ts)
+        if utc and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        float_val = dt.timestamp()
+        return cls(float_val)
 
     @staticmethod
     def _is_float(s) -> bool:
@@ -60,7 +73,7 @@ class TS(float):
             return float(ts) / 1000.0
         elif isinstance(ts, str):
             try:
-                dt = parse_date(ts)
+                dt = date_util_parser.parse(ts)
                 float_val = dt.timestamp()
                 return float_val
             except Exception:
