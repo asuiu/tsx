@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # coding:utf-8
 # Author: ASU --<andrei.suiu@gmail.com>
-# Purpose: 
+# Purpose:
 # Created: 8/4/2021
 
-__author__ = 'ASU'
+__author__ = "ASU"
 
 import unittest
 from datetime import datetime
@@ -146,23 +146,73 @@ class TestTS(TestCase):
 
     def test_from_iso(self):
         ts = TS.from_iso("2018-02-28")
-        self.assertEqual(ts, TS('2018-02-28T00:00:00Z'))
+        self.assertEqual(ts, TS("2018-02-28T00:00:00Z"))
         ts = TS.from_iso("2018-02-28", utc=False)
-        self.assertEqual(ts, TS('2018-02-28T00:00:00'))
+        self.assertEqual(ts, TS("2018-02-28T00:00:00"))
 
         ts = TS.from_iso("20180228")
-        self.assertEqual(ts, TS('2018-02-28T00:00:00Z'))
+        self.assertEqual(ts, TS("2018-02-28T00:00:00Z"))
 
         ts = TS.from_iso("2018-02-28T22:00:00+00:00")
-        self.assertEqual(ts, TS('2018-02-28T22:00:00Z'))
+        self.assertEqual(ts, TS("2018-02-28T22:00:00Z"))
 
         ts = TS.from_iso("2018-02-28T00:00:00+02:00")
-        self.assertEqual(ts, TS('2018-02-27T22:00:00Z'))
+        self.assertEqual(ts, TS("2018-02-27T22:00:00Z"))
         ts = TS.from_iso("2018")
-        self.assertEqual(ts, TS('2018-01-01T00:00:00Z'))
+        self.assertEqual(ts, TS("2018-01-01T00:00:00Z"))
         ts = TS.from_iso("2018-02")
-        self.assertEqual(ts, TS('2018-02-01T00:00:00Z'))
+        self.assertEqual(ts, TS("2018-02-01T00:00:00Z"))
+
+    def test_floor_over_ms(self):
+        ts = TS.from_iso("2018-02-28")
+        ts_to_floor = ts + 1.99
+        expected = ts + 1.9
+        floored = ts_to_floor.floor(unit=0.100000000000001)
+        self.assertEqual(expected, floored)
+
+        floored = ts_to_floor.floor(unit=0.099999999999999999999)
+        self.assertEqual(expected, floored)
+
+        ts_to_floor = ts + 2.999999999999999999999999999999999999
+        expected = ts + 2
+        floored = ts_to_floor.floor(unit=2.0)
+        self.assertEqual(expected, floored)
+
+    def test_floor_1ms(self):
+        ts = TS.from_iso("2018-02-28")
+        ts_to_floor = ts + 1.1119
+        expected = ts + 1.111
+
+        floored = ts_to_floor.floor(unit=0.001)
+        self.assertEqual(expected, floored)
+
+        floored = ts_to_floor.floor(unit=0.001000001)
+        self.assertEqual(expected, floored)
+
+        floored = ts_to_floor.floor(unit=0.000999)
+        self.assertEqual(expected, floored)
+
+    def test_ceil_over_ms(self):
+        ts = TS.from_iso("2018-02-28")
+        ts_to_ceil = ts + 1.000001
+        expected = ts + 1.1
+        # ceil to 100ms
+        ceiled = ts_to_ceil.ceil(unit=0.100000000000001)
+        self.assertEqual(expected, ceiled)
+
+        ceiled = ts_to_ceil.ceil(unit=0.099999999999999999999)
+        self.assertEqual(expected, ceiled)
+
+        ts_to_ceil = ts + 2.000001
+        expected = ts + 4
+        ceiled = ts_to_ceil.ceil(unit=2.0)
+        self.assertEqual(expected, ceiled)
+
+        ts_to_ceil = ts + 2.0000001
+        expected = ts + 2
+        ceiled = ts_to_ceil.ceil(unit=2.0)
+        self.assertEqual(expected, ceiled)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

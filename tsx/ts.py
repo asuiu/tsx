@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # coding:utf-8
 # Author: ASU --<andrei.suiu@gmail.com>
-# Purpose: 
+# Purpose:
 # Created: 8/4/2021
 
-__author__ = 'ASU'
+__author__ = "ASU"
 
+import math
 import traceback
 from datetime import datetime, timezone, tzinfo
 from numbers import Integral, Real
@@ -33,11 +34,11 @@ class TS(float):
         return int(TS.now_dt().timestamp() * 1000)
 
     @classmethod
-    def now(cls) -> 'TS':
+    def now(cls) -> "TS":
         return cls(cls.now_ms(), prec="ms")
 
     @classmethod
-    def from_iso(cls, ts: str, utc: bool = True) -> 'TS':
+    def from_iso(cls, ts: str, utc: bool = True) -> "TS":
         """
         Attention: if timestamp has TZ info, it will ignore the utc parameter
         This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
@@ -58,7 +59,9 @@ class TS(float):
             return False
 
     @classmethod
-    def _parse_to_float(cls, ts: Union[int, float, str], prec: Literal["s", "ms"]) -> float:
+    def _parse_to_float(
+        cls, ts: Union[int, float, str], prec: Literal["s", "ms"]
+    ) -> float:
         if isinstance(ts, float):
             validate(prec == "s")
             return ts
@@ -77,7 +80,9 @@ class TS(float):
                 float_val = dt.timestamp()
                 return float_val
             except Exception:
-                raise ValueError(f"The value can't be converted to TimeStamp: {ts!s} Stack:\n{traceback.format_exc()}")
+                raise ValueError(
+                    f"The value can't be converted to TimeStamp: {ts!s} Stack:\n{traceback.format_exc()}"
+                )
         raise ValueError(f"The value can't be converted to TimeStamp: {ts!s}")
 
     def __new__(cls, ts: Union[int, float, str], prec: Literal["s", "ms"] = "s"):
@@ -93,14 +98,14 @@ class TS(float):
 
     @property
     def as_iso_date(self) -> str:
-        """ Returns Extended ISO date format """
+        """Returns Extended ISO date format"""
         dt = datetime.fromtimestamp(self, tz=timezone.utc)
         s = dt.strftime("%Y-%m-%d")
         return s
 
     @property
     def as_iso_date_basic(self) -> str:
-        """ Returns Basic ISO date format """
+        """Returns Basic ISO date format"""
         dt = datetime.fromtimestamp(self, tz=timezone.utc)
         s = dt.strftime("%Y%m%d")
         return s
@@ -146,10 +151,38 @@ class TS(float):
             try:
                 return cls(v, prec="s")
             except Exception:
-                raise TypeError(f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}")
+                raise TypeError(
+                    f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}"
+                )
         elif isinstance(v, TS):
             return v
         raise TypeError(f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}")
+
+    def floor(self, unit: float) -> "TS":
+        """
+        Returns the timestamp floored to the specified unit
+        :param unit: the unit to floor to which should be multiple of milliseconds
+        """
+        ms_unit = round(unit * 1000)
+        if ms_unit < 1:
+            raise ValueError(
+                f"Invalid unit for ceiling. It should be multiple of milliseconds: {unit}"
+            )
+        self_ms = self * 1000
+        return TS(math.floor(self_ms / ms_unit) * ms_unit / 1000)
+
+    def ceil(self, unit: float) -> "TS":
+        """
+        Returns the timestamp ceiled to the specified unit
+        :param unit: the unit to ceil to which should be multiple of milliseconds
+        """
+        ms_unit = round(unit * 1000)
+        if ms_unit < 1:
+            raise ValueError(
+                f"Invalid unit for ceiling. It should be multiple of milliseconds: {unit}"
+            )
+        self_ms = self * 1000
+        return TS(math.ceil(self_ms / ms_unit) * ms_unit / 1000)
 
     def __int__(self) -> int:
         return round(self)
@@ -187,7 +220,9 @@ class TSMsec(TS):
             try:
                 return cls(v, prec="ms")
             except Exception:
-                raise TypeError(f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}")
+                raise TypeError(
+                    f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}"
+                )
         elif isinstance(v, TS):
             return v
         raise TypeError(f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}")
