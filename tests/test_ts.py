@@ -213,6 +213,20 @@ class TestTS(TestCase):
         ceiled = ts_to_ceil.ceil(unit=2.0)
         self.assertEqual(expected, ceiled)
 
+    def test_weekday(self):
+        ts = TS.from_iso("2022-12-07T00:00:01")
+        self.assertEqual(ts.weekday(), 2)
+        ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
+        self.assertEqual(ts.weekday(utc=False), 2)
+        self.assertEqual(ts.weekday(), 1)
+
+    def test_isoweekday(self):
+        ts = TS.from_iso("2022-12-07T00:00:01")
+        self.assertEqual(ts.isoweekday(), 3)
+        ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
+        self.assertEqual(ts.isoweekday(utc=False), 3)
+        self.assertEqual(ts.isoweekday(), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

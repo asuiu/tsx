@@ -18,6 +18,9 @@ from pyxtension import validate
 from typing_extensions import Literal
 
 DEFAULT_ISO_PARSER = date_util_parser.isoparser()
+_FIRST_MONDAY_TS = 345600
+
+
 class TS(float):
     """
     Represents Unix timestamp in seconds since Epoch
@@ -60,7 +63,7 @@ class TS(float):
 
     @classmethod
     def _parse_to_float(
-        cls, ts: Union[int, float, str], prec: Literal["s", "ms"]
+            cls, ts: Union[int, float, str], prec: Literal["s", "ms"]
     ) -> float:
         if isinstance(ts, float):
             validate(prec == "s")
@@ -183,6 +186,22 @@ class TS(float):
             )
         self_ms = self * 1000
         return TS(math.ceil(self_ms / ms_unit) * ms_unit / 1000)
+
+    def weekday(self, utc: bool = True) -> int:
+        """
+        Return the day of the week as an integer, where Monday is 0 and Sunday is 6. See also isoweekday().
+        """
+        if utc:
+            return int((self - _FIRST_MONDAY_TS) / (24 * 3600)) % 7
+        else:
+            dt = datetime.fromtimestamp(self)
+            return dt.weekday()
+
+    def isoweekday(self, utc: bool = True) -> int:
+        """
+        Return the day of the week as an integer, where Monday is 1 and Sunday is 7. See also weekday().
+        """
+        return self.weekday(utc) + 1
 
     def __int__(self) -> int:
         return round(self)
