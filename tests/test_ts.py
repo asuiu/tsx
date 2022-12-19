@@ -86,9 +86,9 @@ class TestTS(TestCase):
 
     def test_to_str(self):
         ts = TS(ts=self.INT_BASE_TS)
-        self.assertEqual(str(ts), str(self.INT_BASE_TS))
+        self.assertEqual(str(ts), '2018-02-28T22:00:00Z')
         float_ts = TS(ts=self.FLOAT_MS_TS)
-        self.assertEqual(str(float_ts), str(self.FLOAT_MS_TS))
+        self.assertEqual(str(float_ts), '2018-02-28T22:00:00.123856Z')
 
     def test_input_float_rounds(self):
         # round down

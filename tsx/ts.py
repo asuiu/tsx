@@ -207,13 +207,7 @@ class TS(float):
         return round(self)
 
     def __str__(self) -> str:
-        # ToDo: make it return self.as_iso, but check all the places where this can be str-ed, like
-        # SourceUtils.get_tick_df
-
-        i = int(self)
-        if i == self:
-            return str(i)
-        return str(float(self))
+        return self.as_iso
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.as_iso!r})"
