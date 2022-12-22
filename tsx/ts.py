@@ -7,26 +7,31 @@
 __author__ = "ASU"
 
 import math
-import traceback
+import sys
 from datetime import datetime, timezone, tzinfo
 from numbers import Integral, Real
 from typing import Union
 
+import ciso8601
 import pytz
 from dateutil import parser as date_util_parser
-from pyxtension import validate
 from typing_extensions import Literal
 
-DEFAULT_ISO_PARSER = date_util_parser.isoparser()
-_FIRST_MONDAY_TS = 345600
+if sys.version_info >= (3, 11):
+    DEFAULT_ISO_PARSER = datetime.fromisoformat
+else:
+    DEFAULT_ISO_PARSER = ciso8601.parse_datetime
+FIRST_MONDAY_TS = 345600
+DAY_SEC = 24 * 3600
+DAY_MSEC = DAY_SEC * 1000
+WEEK_SEC = 7 * DAY_SEC
 
 
 class TS(float):
     """
-    Represents Unix timestamp in seconds since Epoch
+    Represents Unix timestamp in seconds since Epoch, by default in UTC.
+    It can use local time-zon if utc=False is specified at construction.
     """
-
-    INFINITE_TIME_TS = "2100-01-01T00:00:00+00:00"
 
     @staticmethod
     def now_dt() -> datetime:
@@ -47,7 +52,7 @@ class TS(float):
         This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
         It will allow any of ISO-8601 formats, but will not allow any other formats
         """
-        dt = date_util_parser.isoparser().isoparse(ts)
+        dt = DEFAULT_ISO_PARSER(ts)
         if utc and dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         float_val = dt.timestamp()
@@ -58,38 +63,52 @@ class TS(float):
         try:
             float(s)
             return True
-        except Exception:
+        except (ValueError, TypeError):
             return False
 
     @classmethod
-    def _parse_to_float(
-            cls, ts: Union[int, float, str], prec: Literal["s", "ms"]
-    ) -> float:
-        if isinstance(ts, float):
-            validate(prec == "s")
+    def _from_number(cls, ts: Union[float, int], prec: Literal["s", "ms", "us", "ns"]):
+        if prec == "s":
             return ts
-        elif isinstance(ts, int):
-            if prec == "s":
-                return float(ts)
-            else:
-                return float(ts / 1000)
-        elif prec == "s" and cls._is_float(ts):
-            return float(ts)
-        elif prec == "ms" and cls._is_float(ts):
-            return float(ts) / 1000.0
-        elif isinstance(ts, str):
+        elif prec == "ms":
+            return ts / 1000
+        elif prec == "us":
+            return ts / 1_000_000
+        elif prec == "ns":
+            return ts / 1_000_000_000
+        raise ValueError(f"Invalid precision: {prec}")
+
+    @classmethod
+    def _parse_to_float(
+        cls,
+        ts: Union[int, float, str],
+        prec: Literal["s", "ms", "us", "ns"],
+        utc: bool = True,
+    ) -> float:
+        if isinstance(ts, str):
+            try:
+                return cls.from_iso(ts, utc)
+            except Exception:
+                pass
             try:
                 dt = date_util_parser.parse(ts)
                 float_val = dt.timestamp()
                 return float_val
             except Exception:
-                raise ValueError(
-                    f"The value can't be converted to TimeStamp: {ts!s} Stack:\n{traceback.format_exc()}"
-                )
+                pass
+            if cls._is_float(ts):
+                return cls._from_number(float(ts), prec)
+        elif isinstance(ts, (float, int)):
+            return cls._from_number(float(ts), prec)
         raise ValueError(f"The value can't be converted to TimeStamp: {ts!s}")
 
-    def __new__(cls, ts: Union[int, float, str], prec: Literal["s", "ms"] = "s"):
-        float_val = cls._parse_to_float(ts, prec)
+    def __new__(
+        cls,
+        ts: Union[int, float, str],
+        prec: Literal["s", "ms", "us", "ns"] = "s",
+        utc: bool = True,
+    ):
+        float_val = cls._parse_to_float(ts, prec, utc)
         return float.__new__(cls, float_val)
 
     @property
@@ -192,7 +211,7 @@ class TS(float):
         Return the day of the week as an integer, where Monday is 0 and Sunday is 6. See also isoweekday().
         """
         if utc:
-            return int((self - _FIRST_MONDAY_TS) / (24 * 3600)) % 7
+            return int((self - FIRST_MONDAY_TS) / (24 * 3600)) % 7
         else:
             dt = datetime.fromtimestamp(self)
             return dt.weekday()

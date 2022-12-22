@@ -8,6 +8,7 @@ __author__ = "ASU"
 
 import unittest
 from datetime import datetime
+from time import time, localtime, strftime
 from unittest import TestCase
 
 import pytz
@@ -67,6 +68,8 @@ class TestTS(TestCase):
     def test_as_iso(self):
         ts = TS(ts=self.INT_BASE_TS)
         self.assertEqual(ts.as_iso, self.STR_SEC_TS)
+        ts = TS(ts=self.INT_BASE_TS)+0.123456
+        self.assertEqual(ts.as_iso, "2018-02-28T22:00:00.123456Z")
 
     def test_as_iso_tz_standard(self):
         ts = TS("2018-03-01T00:00:00Z")
@@ -114,7 +117,7 @@ class TestTS(TestCase):
 
     def test_convert_from_ms_str_local_time(self):
         tz_delta_in_sec = self._get_tz_delta(datetime(2018, 2, 28))
-        ts = TS(ts="2018-02-28T22:00:00.123") + tz_delta_in_sec
+        ts = TS(ts="2018-02-28T22:00:00.123", utc=False) + tz_delta_in_sec
         utc_ms_ts = TS("2018-02-28T22:00:00.123Z")
         self.assertEqual(utc_ms_ts, ts)
 
@@ -148,7 +151,7 @@ class TestTS(TestCase):
         ts = TS.from_iso("2018-02-28")
         self.assertEqual(ts, TS("2018-02-28T00:00:00Z"))
         ts = TS.from_iso("2018-02-28", utc=False)
-        self.assertEqual(ts, TS("2018-02-28T00:00:00"))
+        self.assertEqual(ts, TS("2018-02-28T00:00:00", utc=False))
 
         ts = TS.from_iso("20180228")
         self.assertEqual(ts, TS("2018-02-28T00:00:00Z"))
@@ -158,8 +161,8 @@ class TestTS(TestCase):
 
         ts = TS.from_iso("2018-02-28T00:00:00+02:00")
         self.assertEqual(ts, TS("2018-02-27T22:00:00Z"))
-        ts = TS.from_iso("2018")
-        self.assertEqual(ts, TS("2018-01-01T00:00:00Z"))
+        # ts = TS.from_iso("2018")
+        # self.assertEqual(ts, TS("2018-01-01T00:00:00Z"))
         ts = TS.from_iso("2018-02")
         self.assertEqual(ts, TS("2018-02-01T00:00:00Z"))
 
@@ -226,6 +229,23 @@ class TestTS(TestCase):
         ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
         self.assertEqual(ts.isoweekday(utc=False), 3)
         self.assertEqual(ts.isoweekday(), 2)
+
+    def test_default_utc(self):
+        expected = TS.from_iso("2022-12-07T00:00:00Z")
+        ts = TS("2022-12-07T00:00:00")
+        self.assertEqual(expected, ts)
+        ts = TS("20221207")
+        self.assertEqual(expected, ts)
+        t = time()
+        print(t)
+
+    def test_local(self):
+        unix_ts = int(time())
+        lt = localtime(unix_ts)
+        iso_str = strftime("%Y-%m-%dT%H:%M:%S", lt)
+        local_ts = TS(iso_str, utc=False)
+        self.assertEqual(TS(unix_ts), local_ts)
+
 
 
 if __name__ == "__main__":
