@@ -11,6 +11,7 @@ from datetime import datetime
 from time import time, localtime, strftime
 from unittest import TestCase
 
+import numpy as np
 import pytz
 from dateutil import tz
 
@@ -245,6 +246,15 @@ class TestTS(TestCase):
         iso_str = strftime("%Y-%m-%dT%H:%M:%S", lt)
         local_ts = TS(iso_str, utc=False)
         self.assertEqual(TS(unix_ts), local_ts)
+
+    def test_from_numpy_numbers(self):
+        n = np.int64(1519855200000)
+        ts = TS(ts=n, prec="ms")
+        self.assertEqual(ts, 1519855200)
+        ts = TS(ts=np.float64(1519855200.123))
+        self.assertEqual(ts, 1519855200.123)
+
+
 
 
 

@@ -96,11 +96,7 @@ class TS(float):
                 return float_val
             except Exception:
                 pass
-            if cls._is_float(ts):
-                return cls._from_number(float(ts), prec)
-        elif isinstance(ts, (float, int)):
-            return cls._from_number(float(ts), prec)
-        raise ValueError(f"The value can't be converted to TimeStamp: {ts!s}")
+        return cls._from_number(float(ts), prec)
 
     def __new__(
         cls,
