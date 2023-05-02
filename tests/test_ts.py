@@ -7,7 +7,7 @@
 __author__ = "ASU"
 
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from time import time, localtime, strftime
 from unittest import TestCase
 
@@ -253,6 +253,16 @@ class TestTS(TestCase):
         self.assertEqual(ts, 1519855200)
         ts = TS(ts=np.float64(1519855200.123))
         self.assertEqual(ts, 1519855200.123)
+
+    def test_local_dt_has_tzinfo(self):
+        ts = TS("2022-12-07T00:00:00")
+        local_tzinfo = datetime(2022, 12, 7).astimezone().tzinfo
+        self.assertTrue(ts.as_local_dt().tzinfo is not None)
+        self.assertEqual(ts.as_local_dt().tzinfo, local_tzinfo)
+
+    def test_dt_has_tzinfo_in_utc(self):
+        ts = TS("2022-12-07T00:00:00Z")
+        self.assertEqual(ts.as_dt().tzinfo, timezone.utc)
 
 
 

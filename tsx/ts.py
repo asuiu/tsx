@@ -99,46 +99,56 @@ class TS(float):
         return cls._from_number(float(ts), prec)
 
     def __new__(
-        cls,
-        ts: Union[int, float, str],
-        prec: Literal["s", "ms", "us", "ns"] = "s",
-        utc: bool = True,
+            cls,
+            ts: Union[int, float, str],
+            prec: Literal["s", "ms", "us", "ns"] = "s",
+            utc: bool = True,
     ):
         float_val = cls._parse_to_float(ts, prec, utc)
         return float.__new__(cls, float_val)
 
+    def as_dt(self, tz: tzinfo = timezone.utc) -> datetime:
+        """
+        Returns an "aware" datetime object in UTC by default
+        """
+        return datetime.fromtimestamp(self, tz=tz)
+
+    def as_local_dt(self) -> datetime:
+        """
+        Returns an "aware" datetime object in local time
+        Note: We need to call astimezone as fromtimestamp returns a naive datetime otherwise
+        """
+        return datetime.fromtimestamp(self, tz=None).astimezone()
+
     @property
     def as_iso(self) -> str:
-        dt = datetime.fromtimestamp(self, tz=timezone.utc)
-        s = dt.isoformat()
+        s = self.as_dt().isoformat()
         s = s.replace("+00:00", "Z")
         return s
 
     @property
     def as_iso_date(self) -> str:
         """Returns Extended ISO date format"""
-        dt = datetime.fromtimestamp(self, tz=timezone.utc)
-        s = dt.strftime("%Y-%m-%d")
+        s = self.as_dt().strftime("%Y-%m-%d")
         return s
 
     @property
     def as_iso_date_basic(self) -> str:
         """Returns Basic ISO date format"""
-        dt = datetime.fromtimestamp(self, tz=timezone.utc)
-        s = dt.strftime("%Y%m%d")
+        s = self.as_dt().strftime("%Y%m%d")
         return s
 
     def as_iso_tz(self, tz: Union[str, tzinfo]) -> str:
         if isinstance(tz, str):
             tz = pytz.timezone(tz)
-        dt = datetime.fromtimestamp(self, tz=tz)
+        dt = self.as_dt(tz=tz)
         s = dt.isoformat()
         s = s.replace("+00:00", "Z")
         return s
 
     @property
     def as_iso_basic(self) -> str:
-        dt = datetime.fromtimestamp(self, tz=timezone.utc)
+        dt = self.as_dt()
         s = dt.strftime("%Y%m%d-%H%M%S")
         return s
 
@@ -209,7 +219,7 @@ class TS(float):
         if utc:
             return int((self - FIRST_MONDAY_TS) / (24 * 3600)) % 7
         else:
-            dt = datetime.fromtimestamp(self)
+            dt = self.as_local_dt()
             return dt.weekday()
 
     def isoweekday(self, utc: bool = True) -> int:
