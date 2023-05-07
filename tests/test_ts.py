@@ -264,8 +264,9 @@ class TestTS(TestCase):
         ts = TS("2022-12-07T00:00:00Z")
         self.assertEqual(ts.as_dt().tzinfo, timezone.utc)
 
-
-
+    def test_TSMsec_from_iso(self):
+        ts_ms = TSMsec("2022-12-07T00:00:00.123456Z")
+        self.assertEqual(float(ts_ms), 1670371200.123456)
 
 
 if __name__ == "__main__":

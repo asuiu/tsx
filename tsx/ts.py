@@ -56,7 +56,7 @@ class TS(float):
         if utc and dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         float_val = dt.timestamp()
-        return cls(float_val)
+        return cls(float_val, prec="s")
 
     @staticmethod
     def _is_float(s) -> bool:
