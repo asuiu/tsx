@@ -69,8 +69,30 @@ class TestTS(TestCase):
     def test_as_iso(self):
         ts = TS(ts=self.INT_BASE_TS)
         self.assertEqual(ts.as_iso, self.STR_SEC_TS)
-        ts = TS(ts=self.INT_BASE_TS)+0.123456
+        ts = TS(ts=self.INT_BASE_TS) + 0.123456
         self.assertEqual(ts.as_iso, "2018-02-28T22:00:00.123456Z")
+
+    def test_from_reduced_iso_str_through_date_util_parser_explicit_TZ_no_utc(self):
+        ts = TS("20221202235700Z", utc=False)
+        expected_dt_utc = datetime.fromisoformat("2022-12-02T23:57:00").replace(tzinfo=timezone.utc)
+        expected_ts_utc = expected_dt_utc.timestamp()
+        self.assertEqual(ts, expected_ts_utc)
+
+    def test_from_reduced_iso_str_through_date_util_parser_no_TZ_no_utc(self):
+        ts = TS("20221202235700", utc=False)
+        expected_dt = datetime.fromisoformat("2022-12-02T23:57:00")
+        expected_ts = expected_dt.timestamp()
+        self.assertEqual(ts, expected_ts)
+
+    def test_from_reduced_iso_str_through_date_util_parser_explicit_TZ_with_utc_flag(self):
+        ts = TS("20221202235700Z")
+        expected_ts = TS("2022-12-02T23:57:00Z")
+        self.assertEqual(ts, expected_ts)
+
+    def test_from_reduced_iso_str_through_date_util_parser_no_TZ_with_utc_flag(self):
+        ts = TS("20221202235700")
+        expected_ts = TS("2022-12-02T23:57:00Z")
+        self.assertEqual(ts, expected_ts)
 
     def test_as_iso_tz_standard(self):
         ts = TS("2018-03-01T00:00:00Z")

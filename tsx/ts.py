@@ -92,6 +92,9 @@ class TS(float):
                 pass
             try:
                 dt = date_util_parser.parse(ts)
+                if utc:
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
                 float_val = dt.timestamp()
                 return float_val
             except Exception:
