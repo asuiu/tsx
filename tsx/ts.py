@@ -107,6 +107,8 @@ class TS(float):
             prec: Literal["s", "ms", "us", "ns"] = "s",
             utc: bool = True,
     ):
+        if isinstance(ts, TS):
+            return ts
         float_val = cls._parse_to_float(ts, prec, utc)
         return float.__new__(cls, float_val)
 

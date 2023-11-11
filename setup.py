@@ -6,7 +6,7 @@ from setuptools import setup
 __author__ = 'ASU'
 
 # Bump up this version
-VERSION = '0.1.5'
+VERSION = '0.1.6'
 
 basedir = path.abspath(path.dirname(__file__))
 

@@ -290,6 +290,15 @@ class TestTS(TestCase):
         ts_ms = TSMsec("2022-12-07T00:00:00.123456Z")
         self.assertEqual(float(ts_ms), 1670371200.123456)
 
+    def test_TSMsec_from_TSMsec(self):
+        ts_ms = TSMsec("2022-12-07T00:00:00.123456Z")
+        ts_ms2 = TSMsec(ts_ms)
+        self.assertEqual(float(ts_ms), float(ts_ms2))
+
+    def test_TS_from_TS(self):
+        ts = TS("2022-12-07T00:00:00.123456Z")
+        ts2 = TS(ts)
+        self.assertEqual(float(ts), float(ts2))
 
 if __name__ == "__main__":
     unittest.main()
