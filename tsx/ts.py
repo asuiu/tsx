@@ -383,6 +383,14 @@ class TS(BaseTS, float):
         warnings.warn(f"Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
         return iTS(self)
 
+    def to_sec(self) -> "iTS":
+        """
+        Represents Unix timestamp in seconds since Epoch
+
+        ToDo: this is a temporary replacement of as_sec
+        """
+        return iTS(self)
+
     def floor(self, unit: float) -> "TS":
         """
         Returns the timestamp floored to the specified unit
@@ -518,6 +526,9 @@ class iTS(iBaseTS):
         int_val = round(float_val)
         return int.__new__(cls, int_val)
 
+    def as_sec(self) -> "iTS":
+        return self
+
 
 class iTSms(iBaseTS):
     """
@@ -544,6 +555,9 @@ class iTSms(iBaseTS):
         float_val = cls._parse_to_float(ts, prec="ms", utc=utc)
         int_val = round(float_val * cls.UNITS_IN_SEC)
         return int.__new__(cls, int_val)
+
+    def as_msec(self) -> "iTSms":
+        return self
 
 
 class iTSus(iBaseTS):
@@ -574,6 +588,9 @@ class iTSus(iBaseTS):
         float_val = cls._parse_to_float(ts, prec="us", utc=utc)
         int_val = round(float_val * cls.UNITS_IN_SEC)
         return int.__new__(cls, int_val)
+
+    def as_usec(self) -> "iTSus":
+        return self
 
 
 class iTSns(iBaseTS):
@@ -622,3 +639,6 @@ class iTSns(iBaseTS):
     def now(cls) -> "iBaseTS":
         tns = time_ns()
         return cls(tns)
+
+    def as_nsec(self) -> "iTSns":
+        return self
