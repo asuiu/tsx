@@ -2,3 +2,4 @@
 
 numpy
 twine
+pydantic == 2.4.2
