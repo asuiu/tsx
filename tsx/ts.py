@@ -265,10 +265,10 @@ class BaseTS(ABC, metaclass=ABCMeta):
         return self.__add__(other)
 
     def __sub__(self, x: float) -> "BaseTS":
-        return self.__class__(super().__sub__(x))
+        return type(self)(super().__sub__(x))
 
     def __rsub__(self, x: float) -> "BaseTS":
-        return self.__class__(super().__rsub__(x))
+        return type(self)(super().__rsub__(x))
 
 
 class TS(BaseTS, float):
@@ -443,13 +443,16 @@ class TS(BaseTS, float):
         return f"{self.__class__.__name__}({self.isoformat()!r})"
 
     def __add__(self, x: float) -> "TS":
-        return TS(super().__add__(x))
+        return TS(float.__add__(self, x))
 
     def __radd__(self, other) -> "TS":
         return self.__add__(other)
 
     def __sub__(self, x: float) -> "TS":
-        return TS(super().__sub__(x))
+        return TS(float.__sub__(self, x))
+
+    def __rsub__(self, x: float) -> "TS":
+        return TS(float.__rsub__(self, x))
 
 
 class TSMsec(TS):

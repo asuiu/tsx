@@ -365,6 +365,44 @@ class TestTS(TestCase):
         self.assertIsInstance(ms, iTSms)
         self.assertEqual(ms, 1670371200123)
 
+    def test_regression_with_MSec_diff(self):
+        ts1 = TSMsec(0)
+        ts2 = TSMsec(10)
+        ts_diff = ts2 - ts1
+        self.assertEqual(ts_diff, 0.010)
+        ms_diff = ts_diff.as_ms
+        self.assertEqual(ms_diff, 10)
+
+    def test_sum_small_values(self):
+        ts1 = TSMsec(0)
+        ts2 = TSMsec(10)
+        ts_sum = ts2 + ts1
+        self.assertEqual(ts_sum, 0.010)
+        ms_sum = ts_sum.as_ms
+        self.assertEqual(ms_sum, 10)
+
+    def test_radd_small_values(self):
+        ts1 = TSMsec(0)
+        ts_sum = 0.010+ts1
+        self.assertEqual(ts_sum, 0.010)
+        ms_sum = ts_sum.as_ms
+        self.assertEqual(ms_sum, 10)
+
+    def test_sec_diff(self):
+        ts1 = TS(0)
+        ts2 = TS(10)
+        ts_diff = ts2 - ts1
+        self.assertEqual(ts_diff, 10)
+        ms_diff = ts_diff.as_ms
+        self.assertEqual(ms_diff, 10000)
+
+    def test_rsub_small_values(self):
+        ts1 = TSMsec(0)
+        ts_sum = 0.010-ts1
+        self.assertEqual(ts_sum, 0.010)
+        ms_sum = ts_sum.as_ms
+        self.assertEqual(ms_sum, 10)
+
 
 class TestBaseTS(TestCase):
     def test_timestamp(self):
@@ -620,6 +658,13 @@ class Test_iTSms(TestCase):
 
         t1 = TestModel(ts=1670371200123.000)
         self.assertEqual(t1.ts, 1670371200123)
+
+    def test_diff_small_values(self):
+        t1 = iTSms(0)
+        t2 = iTSms(10)
+        self.assertEqual(t2 - t1, 10)
+        self.assertEqual(t1 - t2, -10)
+
 
 
 class Test_iTSus(TestCase):
