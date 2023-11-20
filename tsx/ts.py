@@ -218,10 +218,11 @@ class BaseTS(ABC, metaclass=ABCMeta):
         return iTSns(round(self.timestamp() * 1_000_000_000))
 
     @abstractmethod
-    def floor(self, unit: int) -> "BaseTS":
+    def floor(self, unit: Union[int, float]) -> "BaseTS":
         """
-        Returns the timestamp floored to the specified unit
-        :param unit: the unit to floor which should be of the same precision as the timestamp
+        Returns the timestamp floored to the specified unit.
+
+        :param unit: the unit in is expressed in timeunits of the same precision as the class, i.e. for iTSms it's ms, and for TS it's sec
         """
         raise NotImplementedError()
 
@@ -393,8 +394,10 @@ class TS(BaseTS, float):
 
     def floor(self, unit: float) -> "TS":
         """
-        Returns the timestamp floored to the specified unit
-        :param unit: the unit to floor to which should be multiple of milliseconds
+        Returns the timestamp floored to the specified unit.
+        unit is rounded to the ms precision, so it can be 0.100 for example, to floow to 100ms
+
+        :param unit: the unit in seconds, to floor to.
         """
         ms_unit = round(unit * 1000)
         if ms_unit < 1:
@@ -486,8 +489,9 @@ class iBaseTS(BaseTS, int):
 
     def floor(self, unit: int) -> "iBaseTS":
         """
-        Returns the timestamp floored to the specified unit
-        :param unit: the unit to floor to in seconds
+        Returns the timestamp floored to the specified unit.
+
+        :param unit: the unit in is expressed in timeunits of the same precision as the class, i.e. for iTSms it's ms, and for TS it's sec
         """
         assert isinstance(unit, Integral) and unit > 0, f"Invalid unit for flooring. It should be multiple of nanoseconds: {unit}"
         floored_int = (self // unit) * unit
