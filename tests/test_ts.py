@@ -6,6 +6,7 @@
 
 __author__ = "ASU"
 
+import pickle
 import unittest
 from datetime import datetime, timezone
 from time import time, localtime, strftime, time_ns
@@ -383,7 +384,7 @@ class TestTS(TestCase):
 
     def test_radd_small_values(self):
         ts1 = TSMsec(0)
-        ts_sum = 0.010+ts1
+        ts_sum = 0.010 + ts1
         self.assertEqual(ts_sum, 0.010)
         ms_sum = ts_sum.as_ms
         self.assertEqual(ms_sum, 10)
@@ -398,10 +399,20 @@ class TestTS(TestCase):
 
     def test_rsub_small_values(self):
         ts1 = TSMsec(0)
-        ts_sum = 0.010-ts1
+        ts_sum = 0.010 - ts1
         self.assertEqual(ts_sum, 0.010)
         ms_sum = ts_sum.as_ms
         self.assertEqual(ms_sum, 10)
+
+    def test_ts_pickle_roundtrip(self):
+        ts = TS("2022-12-07T00:00:00.123456Z")
+        ts2 = pickle.loads(pickle.dumps(ts))
+        self.assertEqual(ts, ts2)
+
+    def test_tsms_pickle_roundtrip(self):
+        ts_ms = TSMsec("2022-12-07T00:00:00.123456Z")
+        ts_ms2 = pickle.loads(pickle.dumps(ts_ms))
+        self.assertEqual(ts_ms, ts_ms2)
 
 
 class TestBaseTS(TestCase):
@@ -574,6 +585,11 @@ class Test_iTS(TestCase):
         t1 = TestModel(ts=1670371200)
         self.assertEqual(t1.ts, 1670371200)
 
+    def test_pickle_roundtrip(self):
+        ts = iTS("2022-12-07T00:00:00.123456Z")
+        ts2 = pickle.loads(pickle.dumps(ts))
+        self.assertEqual(ts, ts2)
+
 
 class Test_iTSms(TestCase):
     def test_constructors(self):
@@ -665,6 +681,10 @@ class Test_iTSms(TestCase):
         self.assertEqual(t2 - t1, 10)
         self.assertEqual(t1 - t2, -10)
 
+    def test_pickle_roundtrip(self):
+        ts = iTSms("2022-12-07T00:00:00.123456Z")
+        ts2 = pickle.loads(pickle.dumps(ts))
+        self.assertEqual(ts, ts2)
 
 
 class Test_iTSus(TestCase):
@@ -743,6 +763,11 @@ class Test_iTSus(TestCase):
     def test_str(self):
         ts = iTSus(ts=1519855200123456)
         self.assertEqual(str(ts), "2018-02-28T22:00:00.123456Z")
+
+    def test_pickle_roundtrip(self):
+        ts = iTSus("2022-12-07T00:00:00.123456Z")
+        ts2 = pickle.loads(pickle.dumps(ts))
+        self.assertEqual(ts, ts2)
 
 
 class Test_iTSns(TestCase):
@@ -829,6 +854,11 @@ class Test_iTSns(TestCase):
 
         self.assertLess(ns_ts - now_ts, 100)
         self.assertLess(abs(its - now_ts), 500)
+
+    def test_pickle_roundtrip(self):
+        ts = iTSns("2022-12-07T00:00:00.123456Z")
+        ts2 = pickle.loads(pickle.dumps(ts))
+        self.assertEqual(ts, ts2)
 
 
 if __name__ == "__main__":

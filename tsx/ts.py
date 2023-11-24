@@ -460,7 +460,9 @@ class TS(BaseTS, float):
 
 class TSMsec(TS):
     def __new__(cls, ts: Union[int, float, str], prec: Literal["s", "ms"] = "ms"):
-        return super().__new__(cls, ts, prec)
+        if isinstance(ts, TS):
+            return ts
+        return super().__new__(TS, ts, prec)
 
 
 class iBaseTS(BaseTS, int):
