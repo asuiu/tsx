@@ -19,6 +19,7 @@ from dateutil import tz
 from pydantic.v1 import BaseModel
 
 from tsx import TS, TSMsec, iTS, iTSms, iTSus, iTSns
+from tsx.ts import dTS
 
 
 class TestTS(TestCase):
@@ -589,6 +590,101 @@ class Test_iTS(TestCase):
         ts = iTS("2022-12-07T00:00:00.123456Z")
         ts2 = pickle.loads(pickle.dumps(ts))
         self.assertEqual(ts, ts2)
+
+
+class Test_dTS(TestCase):
+    def test_delta_round_float(self):
+        ts = TS("2022-12-07T00:00:00.123456Z")
+        ts_plus = ts + dTS(10.1)
+        self.assertEqual(ts_plus, TS("2022-12-07T00:00:10.123456Z"))
+        ts_plus = ts + dTS(10.9)
+        self.assertEqual(ts_plus, TS("2022-12-07T00:00:11.123456Z"))
+
+        ts_minus = ts - dTS(10.1)
+        self.assertEqual(ts_minus, TS("2022-12-06T23:59:50.123456Z"))
+        ts_minus = ts - dTS(10.9)
+        self.assertEqual(ts_minus, TS("2022-12-06T23:59:49.123456Z"))
+
+    def test_months_delta_last_day(self):
+        ts = TS("2022-12-31T00:00:00.123456Z")
+        dts = dTS("2M")
+        ts_plus = ts + dts
+        self.assertEqual(ts_plus, TS("2023-02-28T00:00:00.123456Z"))
+        ts_minus = ts - dts
+        self.assertEqual(ts_minus, TS("2022-10-31T00:00:00.123456Z"))
+
+        ts_feb = TS("2022-02-28T00:00:00.123456Z")
+        ts_plus = ts_feb + dts
+        self.assertEqual(ts_plus, TS("2022-04-28T00:00:00.123456Z"))
+        ts_minus = ts_feb - dts
+        self.assertEqual(ts_minus, TS("2021-12-28T00:00:00.123456Z"))
+
+    def test_months_delta_first_day(self):
+        ts = TS("2022-01-01T00:00:00.123456Z")
+        dts = dTS("2M")
+        ts_plus = ts + dts
+        self.assertEqual(ts_plus, TS("2022-03-01T00:00:00.123456Z"))
+        ts_minus = ts - dts
+        self.assertEqual(ts_minus, TS("2021-11-01T00:00:00.123456Z"))
+
+    def test_years_delta_last_month_day(self):
+        # Leap year
+        ts = TS("2024-02-29T00:00:00.123456Z")
+        dts = dTS("2Y")
+        ts_plus = ts + dts
+        self.assertEqual(ts_plus, TS("2026-02-28T00:00:00.123456Z"))
+        ts_minus = ts - dts
+        self.assertEqual(ts_minus, TS("2022-02-28T00:00:00.123456Z"))
+
+        # non-leap year
+        ts = TS("2022-02-28T00:00:00.123456Z")
+        ts_plus = ts + dts
+        # this is leap year, but we don't care of the last day of the month
+        self.assertEqual(ts_plus, TS("2024-02-28T00:00:00.123456Z"))
+        ts_minus = ts - dts
+        self.assertEqual(ts_minus, TS("2020-02-28T00:00:00.123456Z"))
+
+    def test_encode_decode(self):
+        dts = dTS(5 * 60 * 1_000_000_000, unit='ns')
+        self.assertEqual(str(dts), "5m")
+        dts = dTS(60000, "ms")
+        self.assertEqual(str(dts), "1m")
+        self.assertEqual(repr(dts), 'dTS("1m")')
+        dts = dTS("300000ms")
+        self.assertEqual(str(dts), "5m")
+        dts = dTS("7200000ms")
+        self.assertEqual(str(dts), "2h")
+        dts = dTS("-7200000ms")
+        self.assertEqual(str(dts), "-2h")
+        dts = dTS(2 * 24 * 3600)
+        self.assertEqual(str(dts), "2d")
+        dts = dTS(2 * 7 * 24 * 3600)
+        self.assertEqual(str(dts), "2w")
+
+        dts = dTS(2, unit="Y")
+        self.assertEqual(str(dts), "2Y")
+        dts = dTS(2 * 12, unit="M")
+        self.assertEqual(str(dts), "2Y")
+        dts = dTS(13, unit="M")
+        self.assertEqual(str(dts), "13M")
+
+    def test_equality(self):
+        dts = dTS(5 * 60 * 1_000_000_000, unit='ns')
+        self.assertEqual(dts, dTS("5m"))
+        self.assertEqual(dts, dTS("300000ms"))
+        self.assertEqual(dTS('2Y'), dTS("24M"))
+
+        self.assertNotEqual(dts, dTS("300001ms"))
+
+    def test_invalid_input(self):
+        with self.assertRaises(ValueError):
+            dTS("1")
+        with self.assertRaises(ValueError):
+            dTS("1 s")
+        with self.assertRaises(ValueError):
+            dTS("+1s")
+        with self.assertRaises(ValueError):
+            dTS("1ps")
 
 
 class Test_iTSms(TestCase):

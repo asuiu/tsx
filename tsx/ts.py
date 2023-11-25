@@ -7,19 +7,21 @@
 __author__ = "ASU"
 
 import math
+import re
 import sys
 import warnings
 from abc import ABC, abstractmethod, ABCMeta
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, timezone, tzinfo, timedelta
 from decimal import Decimal
-from numbers import Integral, Real
+from numbers import Integral, Real, Number
 from time import time_ns
-from typing import Union
+from typing import Union, Optional, Tuple
 
 import ciso8601
 import pytz
 from _decimal import InvalidOperation
 from dateutil import parser as date_util_parser
+from dateutil.relativedelta import relativedelta
 from typing_extensions import Literal
 
 if sys.version_info >= (3, 11):
@@ -29,7 +31,114 @@ else:
 FIRST_MONDAY_TS = 345600
 DAY_SEC = 24 * 3600
 DAY_MSEC = DAY_SEC * 1000
+DAY_NSEC = DAY_SEC * 1_000_000_000
 WEEK_SEC = 7 * DAY_SEC
+
+
+class dTS:
+    """
+    Represents a delta timestamp.
+    It can be used to represent a delta in time, like 1h, 1d, 1w, 1M, 1Y, etc.
+    It can be used to add or subtract a delta from a timestamp.
+    It can be used to represent a delta in months, like 1M, 2M, 3M, etc.
+    It can be used to represent a delta in years, like 1Y, 2Y, 3Y, etc.
+    """
+    PATTERN_RE = re.compile(r"^(-?\d+)(ms|ns|s|m|h|d|w|M|Y)$")
+    NS_BY_UNIT = {
+        'w':  7 * 24 * 60 * 60 * 1_000_000_000,
+        'd':  24 * 60 * 60 * 1_000_000_000,
+        'h':  60 * 60 * 1_000_000_000,
+        'm':  60 * 1_000_000_000,
+        's':  1_000_000_000,
+        'ms': 1_000_000,
+        'us': 1_000,
+        'ns': 1,
+    }
+
+    @classmethod
+    def _get_deltas(cls, delta: int, unit: str) -> Tuple[int, int]:
+        """
+        Returns the delta in nanoseconds & months
+        :param delta: the delta in the specified unit
+        :param unit: (default: sec) the unit of the delta, if it's not specified, it will be parsed from the delta string
+
+        :return: (delta_ns, months)
+        """
+        if unit == "M":
+            return 0, delta
+        if unit == "Y":
+            return 0, delta * 12
+        delta_ns = round(delta * cls.NS_BY_UNIT[unit])
+        return delta_ns, 0
+
+    def __init__(self, delta: Union[str, Number, timedelta], unit: Optional[Literal['Y', 'M', 'w', 'd', 'h', 'm', 's', 'ms', 'us', 'ns']] = None) -> None:
+        """
+        :param delta: the delta in the specified unit
+        :param unit: (default: sec) the unit of the delta, if it's not specified, it will be parsed from the delta string
+        """
+        if isinstance(delta, str):
+            m = self.PATTERN_RE.match(delta)
+            if not m:
+                raise ValueError(f"Invalid delta string: {delta}")
+            delta, unit = m.groups()
+            delta = int(delta)
+            self._delta_ns, self._months = self._get_deltas(delta, unit)
+        elif isinstance(delta, timedelta):
+            raise NotImplementedError("timedelta is not supported yet")
+        elif isinstance(delta, Number):
+            unit = unit or "s"
+            delta = round(delta)
+            self._delta_ns, self._months = self._get_deltas(delta, unit)
+
+    @staticmethod
+    def _add_raw(ts_ns: int, delta_ns: int, months: int) -> int:
+        if not type(ts_ns) is int:
+            ts_ns = int(ts_ns)
+        if months != 0:
+            day_ns = ts_ns % DAY_NSEC
+            date_ts = (ts_ns - day_ns) // 1_000_000_000
+            dt = datetime.fromtimestamp(date_ts, tz=timezone.utc)
+            months_delta = relativedelta(months=months)
+            new_dt: datetime = dt + months_delta
+            new_ts_ns = round(new_dt.timestamp()) * 1_000_000_000 + day_ns + delta_ns
+            return new_ts_ns
+        return ts_ns + delta_ns
+
+    def _add(self, ts_ns: int) -> int:
+        """
+        Adds the delta to the timestamp in nanoseconds
+        :param ts_ns: the timestamp in nanoseconds
+        """
+        return self._add_raw(ts_ns, self._delta_ns, self._months)
+
+    def _sub(self, ts_ns: int) -> int:
+        """
+        Subtracts the delta from the timestamp in nanoseconds
+        :param ts_ns: the timestamp in nanoseconds
+        """
+        return self._add_raw(ts_ns, -self._delta_ns, -self._months)
+
+    def __str__(self) -> str:
+        if self._months != 0:
+            assert self._delta_ns == 0
+            if self._months % 12 == 0:
+                return f"{self._months // 12}Y"
+            return f"{self._months}M"
+        for unit, ns in self.NS_BY_UNIT.items():
+            if self._delta_ns % ns == 0:
+                return f"{self._delta_ns // ns}{unit}"
+        raise RuntimeError(f"dTS class corrupted: dTS(delta_ns={self._delta_ns}, months={self._months})")
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}("{self.__str__()}")'
+
+    def __eq__(self, o: "dTS") -> bool:
+        if not isinstance(o, dTS):
+            return False
+        return self._months == o._months and self._delta_ns == o._delta_ns
+
+    def __radd__(self, other):
+        return self.__add__(other)
 
 
 class BaseTS(ABC, metaclass=ABCMeta):
@@ -445,13 +554,17 @@ class TS(BaseTS, float):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.isoformat()!r})"
 
-    def __add__(self, x: float) -> "TS":
+    def __add__(self, x: Union[float, dTS]) -> "TS":
+        if isinstance(x, dTS):
+            return TS(x._add(self.as_nsec()), prec="ns")
         return TS(float.__add__(self, x))
 
     def __radd__(self, other) -> "TS":
         return self.__add__(other)
 
     def __sub__(self, x: float) -> "TS":
+        if isinstance(x, dTS):
+            return TS(x._sub(self.as_nsec()), prec='ns')
         return TS(float.__sub__(self, x))
 
     def __rsub__(self, x: float) -> "TS":
