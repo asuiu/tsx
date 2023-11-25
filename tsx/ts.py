@@ -473,7 +473,7 @@ class TS(BaseTS, float):
     as_file_date = as_iso_date_basic
 
     @property
-    def as_ms(self) -> int:
+    def as_ms(self) -> "iTSms":
         """
         Represents Unix timestamp in MilliSeconds since Epoch
 
