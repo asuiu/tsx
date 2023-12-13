@@ -11,6 +11,7 @@ import unittest
 from datetime import datetime, timezone
 from time import time, localtime, strftime, time_ns
 from unittest import TestCase
+from unittest.mock import patch
 
 import numpy as np
 import pytz
@@ -47,6 +48,13 @@ class TestTS(TestCase):
         # round up
         ts = TS(ts=self.INT_BASE_ROUND_MS_TS + 501, prec="ms")
         self.assertEqual(ts, self.INT_BASE_TS + 0.501)
+
+    def test_now(self):
+        ts_ns = 1_000_000_123_456_789
+        with patch('tsx.ts.time_ns', return_value=ts_ns):
+            ts = TS.now()
+        rounded_ts_ns = round(ts * 1e9)
+        self.assertEqual(rounded_ts_ns, ts_ns)
 
     def test_TSMsec_nominal(self):
         ts = TSMsec(ts=str(self.INT_BASE_ROUND_MS_TS + 500))

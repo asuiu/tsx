@@ -407,7 +407,7 @@ class TS(BaseTS, float):
 
     @classmethod
     def now(cls) -> "TS":
-        return cls(cls.now_ms(), prec="ms")
+        return cls(cls.now_ns()/1e9)
 
     @classmethod
     def from_iso(cls, ts: str, utc: bool = True) -> "TS":

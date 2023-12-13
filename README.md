@@ -334,6 +334,9 @@ After instantiation, the TSMsec instance is identical to TS instance, and it inc
 
 ### Changelog
 
+##### 0.1.14
+- TS.now() offers nanosecond precision instead of millisecond
+
 ##### 0.1.13
 - TypeHint update: `TS.as_ms()` now returns `iTSms` instead of simple `int`
 - Added more documentation to README.md
