@@ -334,6 +334,10 @@ After instantiation, the TSMsec instance is identical to TS instance, and it inc
 
 ### Changelog
 
+##### 0.1.15
+- TS.as_dt() now is able to properly handle the big dates (year > 2038), which are causing overflow exceptions in Python datetime.fromtimestamp() stdlib functions
+- Added instantiation from Python datetime and date objects + proper handling of big dates (year > 2038) 
+
 ##### 0.1.14
 - TS.now() offers nanosecond precision instead of millisecond
 

@@ -10,8 +10,9 @@ import math
 import re
 import sys
 import warnings
+from _decimal import InvalidOperation
 from abc import ABC, abstractmethod, ABCMeta
-from datetime import datetime, timezone, tzinfo, timedelta
+from datetime import datetime, timezone, tzinfo, timedelta, date, time
 from decimal import Decimal
 from numbers import Integral, Real, Number
 from time import time_ns
@@ -19,7 +20,6 @@ from typing import Union, Optional, Tuple
 
 import ciso8601
 import pytz
-from _decimal import InvalidOperation
 from dateutil import parser as date_util_parser
 from dateutil.relativedelta import relativedelta
 from typing_extensions import Literal
@@ -33,6 +33,9 @@ DAY_SEC = 24 * 3600
 DAY_MSEC = DAY_SEC * 1000
 DAY_NSEC = DAY_SEC * 1_000_000_000
 WEEK_SEC = 7 * DAY_SEC
+SECONDS_PER_DAY = 86400
+AVG_DAYS_PER_YEAR = 365.25  # Average considering leap years
+EPOCH_DT = datetime(1970, 1, 1)
 
 
 class dTS:
@@ -187,7 +190,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
     @classmethod
     def _parse_to_float(
             cls,
-            ts: Union[int, float, str],
+            ts: Union[int, float, str, datetime, date],
             prec: Literal["s", "ms", "us", "ns"],
             utc: bool = True,
     ) -> float:
@@ -205,6 +208,18 @@ class BaseTS(ABC, metaclass=ABCMeta):
                 return float_val
             except Exception:
                 pass
+        elif isinstance(ts, (datetime, date)):
+            if isinstance(ts, datetime):
+                return ts.timestamp()
+            if isinstance(ts, date):
+                if utc:
+                    dt = datetime.combine(ts, time.min, tzinfo=timezone.utc)
+                else:
+                    dt = datetime.combine(ts, time.min).astimezone()
+                return dt.timestamp()
+
+            float_val = ts.timestamp()
+            return float_val
         return cls._from_number(float(ts), prec)
 
     @abstractmethod
@@ -222,8 +237,21 @@ class BaseTS(ABC, metaclass=ABCMeta):
         """
         Returns an "aware" datetime object in UTC by default
         """
-        ts = self.timestamp()
-        return datetime.fromtimestamp(ts, tz=tz)
+        ts = float(self.timestamp())
+        try:
+            return datetime.fromtimestamp(ts, tz=tz)
+        except OSError:
+            # can't convert due to overflow error, so we need to do it using other method
+            # return datetime.utcfromtimestamp(float(ts)) also fails
+            days = ts // SECONDS_PER_DAY
+            years = int(days / AVG_DAYS_PER_YEAR)  # Average considering leap years
+            year = 1970 + years
+            year_date = datetime(year, 1, 1)
+            td_to_year_beginning = year_date - datetime(1970, 1, 1)
+            year_remaining_sec = ts - td_to_year_beginning.total_seconds()
+            td = timedelta(seconds=year_remaining_sec)
+            res = year_date + td
+            return res
 
     def as_local_dt(self) -> datetime:
         """
@@ -407,7 +435,7 @@ class TS(BaseTS, float):
 
     @classmethod
     def now(cls) -> "TS":
-        return cls(cls.now_ns()/1e9)
+        return cls(cls.now_ns() / 1e9)
 
     @classmethod
     def from_iso(cls, ts: str, utc: bool = True) -> "TS":

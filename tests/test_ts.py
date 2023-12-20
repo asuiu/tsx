@@ -8,14 +8,14 @@ __author__ = "ASU"
 
 import pickle
 import unittest
-from datetime import datetime, timezone
+from _decimal import Decimal
+from datetime import datetime, timezone, date
 from time import time, localtime, strftime, time_ns
 from unittest import TestCase
 from unittest.mock import patch
 
 import numpy as np
 import pytz
-from _decimal import Decimal
 from dateutil import tz
 from pydantic.v1 import BaseModel
 
@@ -70,6 +70,36 @@ class TestTS(TestCase):
     def test_from_int_str(self):
         ts = TS(ts="1519855200")
         self.assertEqual(ts, 1519855200)
+
+    def test_from_datetime(self):
+        dt = datetime(2022, 12, 7, 1, 2, 3, tzinfo=timezone.utc)
+        ts = TS(ts=dt)
+        self.assertEqual(ts, TS("2022-12-07T01:02:03Z"))
+
+    def test_from_datetime_local(self):
+        dt = datetime(2022, 12, 7, 1, 2, 3, tzinfo=tz.tzlocal())
+        ts = TS(ts=dt)
+        self.assertEqual(ts, TS("2022-12-07T01:02:03", utc=False))
+
+    def test_from_date(self):
+        dt = date(2022, 12, 7)
+        ts = TS(ts=dt)
+        self.assertEqual(ts, TS("2022-12-07T00:00:00Z"))
+
+    def test_from_date_local(self):
+        dt = date(2022, 12, 7)
+        ts = TS(ts=dt, utc=False)
+        self.assertEqual(ts, TS("2022-12-07T00:00:00", utc=False))
+
+    def test_from_big_datetime(self):
+        dt = datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        ts = TS(ts=dt)
+        self.assertEqual(ts, TS("9999-12-31T23:59:59Z"))
+
+    def test_from_big_date(self):
+        dt = date(9999, 12, 31)
+        ts = TS(ts=dt)
+        self.assertEqual(ts, TS("9999-12-31T00:00:00Z"))
 
     def test_to_int(self):
         ts = TS(ts=self.INT_BASE_ROUND_MS_TS + 500, prec="ms")
@@ -170,6 +200,27 @@ class TestTS(TestCase):
 
         ts = TS(ts="2018-02-28T22:00:00.123Z")
         self.assertEqual(ts, self.INT_BASE_MS_TS / 1000)
+
+    def test_convert_from_infinite_dates(self):
+        ts = TS('9999-12-31T23:59:59.999999Z')
+        self.assertEqual(ts, 253402300799.999999)
+
+        ts = TS('9999-12-31')
+        self.assertEqual(ts, 253402214400.0)
+
+    def test_as_dt_infinite_dates(self):
+        ts = TS('9999-12-31')
+        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31))
+
+        ts = TS('9999-12-31T23:59:59')
+        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31, 23, 59, 59))
+
+    def test_str_infinite_dates(self):
+        ts = TS('9999-12-31')
+        self.assertEqual(str(ts), '9999-12-31T00:00:00')
+
+        ts = TS('9999-12-31T23:59:59')
+        self.assertEqual(str(ts), '9999-12-31T23:59:59')
 
     def test_math_ops(self):
         ts = TS(ts=1519855200)
