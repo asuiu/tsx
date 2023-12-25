@@ -396,18 +396,6 @@ class BaseTS(ABC, metaclass=ABCMeta):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.isoformat()!r})"
 
-    def __add__(self, x: float) -> "BaseTS":
-        return self.__class__(super().__add__(x))
-
-    def __radd__(self, other):
-        return self.__add__(other)
-
-    def __sub__(self, x: float) -> "BaseTS":
-        return type(self)(super().__sub__(x))
-
-    def __rsub__(self, x: float) -> "BaseTS":
-        return type(self)(super().__rsub__(x))
-
 
 class TS(BaseTS, float):
     """
@@ -649,6 +637,23 @@ class iBaseTS(BaseTS, int):
         ceiled_int = -(-self // unit) * unit  # this performs a ceiling division
         # ceiled_int = math.ceil(self / unit) * unit
         return type(self)(ceiled_int)
+
+    def __int__(self) -> int:
+        return round(self)
+
+    def __add__(self, x: Number) -> "BaseTS":
+        return type(self)(int(self) + x)
+
+    def __radd__(self, x: Number):
+        return type(self)(x + int(self))
+
+    def __sub__(self, x: Number) -> "BaseTS":
+        d = int(self) - x
+        return type(self)(d)
+
+    def __rsub__(self, x: Number) -> "BaseTS":
+        d = x - int(self)
+        return type(self)(d)
 
 
 class iTS(iBaseTS):

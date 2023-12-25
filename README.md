@@ -2,8 +2,8 @@
 
 **T**ime **S**tamp e**X**tensions for Python
 
-Why tsx? `tsa` was created as a response to the known Python datetime standard library flaw that violates ISO
-8601. ( [Example](https://stackoverflow.com/questions/19654578/python-utc-datetime-objects-iso-format-doesnt-include-z-zulu-or-zero-offset) )
+###### Why tsx? 
+**tsx** was created as a response to the known Python datetime standard library flaw that violates ISO 8601. ( [Example](https://stackoverflow.com/questions/19654578/python-utc-datetime-objects-iso-format-doesnt-include-z-zulu-or-zero-offset) )
 
 It properly handles the Daylight Saving Time (summer time), and provides functionality for creating, manipulating, and formatting timestamps in various formats
 and precisions.
@@ -334,6 +334,8 @@ After instantiation, the TSMsec instance is identical to TS instance, and it inc
 
 ### Changelog
 
+##### 0.1.16
+- Fixed bug in iTS().__sub__ when performed operations with floats or other TS instances
 ##### 0.1.15
 - TS.as_dt() now is able to properly handle the big dates (year > 2038), which are causing overflow exceptions in Python datetime.fromtimestamp() stdlib functions
 - Added instantiation from Python datetime and date objects + proper handling of big dates (year > 2038) 

@@ -650,6 +650,24 @@ class Test_iTS(TestCase):
         ts2 = pickle.loads(pickle.dumps(ts))
         self.assertEqual(ts, ts2)
 
+    def test_add_float(self):
+        ts = iTS(10)
+        ts2 = ts + 1.123456
+        self.assertEqual(ts2, 11)
+        self.assertIsInstance(ts2, iTS)
+
+    def test_sub_float(self):
+        ts = iTS(10)
+        ts2 = ts - 1.123456
+        self.assertEqual(ts2, 9)
+        self.assertIsInstance(ts2, iTS)
+
+    def test_sub_TS(self):
+        ts = iTS(10)
+        ts2 = ts - TS(1.123456)
+        self.assertEqual(ts2, 9)
+        self.assertIsInstance(ts2, iTS)
+
 
 class Test_dTS(TestCase):
     def test_delta_round_float(self):
@@ -840,6 +858,30 @@ class Test_iTSms(TestCase):
         ts = iTSms("2022-12-07T00:00:00.123456Z")
         ts2 = pickle.loads(pickle.dumps(ts))
         self.assertEqual(ts, ts2)
+
+    def test_add_float(self):
+        ts1 = iTSms(10)
+        ts_sum = ts1 + 1.001
+        self.assertIsInstance(ts_sum, iTSms)
+        self.assertEqual(ts_sum, 11)
+
+    def test_radd_float(self):
+        ts1 = iTSms(10)
+        ts_sum = 1.001 + ts1
+        self.assertIsInstance(ts_sum, float)
+        self.assertEqual(ts_sum, 11.001)
+
+    def test_regression_sub_float(self):
+        ts1 = iTSms(10)
+        ts_diff = ts1 - 1.001
+        self.assertIsInstance(ts_diff, iTSms)
+        self.assertEqual(ts_diff, 9)
+
+    def test_rsub_float(self):
+        ts1 = iTSms(10)
+        ts_diff = 10.001 - ts1
+        self.assertIsInstance(ts_diff, float)
+        self.assertAlmostEqual(ts_diff, 0.001)
 
 
 class Test_iTSus(TestCase):
