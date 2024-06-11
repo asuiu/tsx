@@ -19,6 +19,7 @@ from time import time_ns
 from typing import Union, Optional, Tuple
 
 import ciso8601
+import numpy as np
 import pytz
 from dateutil import parser as date_util_parser
 from dateutil.relativedelta import relativedelta
@@ -176,6 +177,19 @@ class BaseTS(ABC, metaclass=ABCMeta):
         return float_val
 
     @classmethod
+    def ns_timestamp_from_iso(cls, ts: str, utc: bool = True) -> int:
+        """
+        Attention: if timestamp has TZ info, it will ignore the utc parameter. It will allow any of ISO-8601 formats, but will not allow any other formats.
+        If utc is False, we'll use the iTSms to compute the timestamp in milliseconds (as it properly computes the tzone), and just append the microseconds
+        """
+        its = int(np.datetime64(ts))
+        if not utc:
+            itsms = int(iTSms(ts, utc)) * 1_000_000
+            us = its % 1_000_000
+            its = itsms + us
+        return its
+
+    @classmethod
     def _from_number(cls, ts: Union[float, int], prec: Literal["s", "ms", "us", "ns"]):
         if prec == "s":
             return ts
@@ -195,10 +209,13 @@ class BaseTS(ABC, metaclass=ABCMeta):
             utc: bool = True,
     ) -> float:
         if isinstance(ts, str):
-            try:
-                return cls.timestamp_from_iso(ts, utc)
-            except Exception:
-                pass
+            if prec == "ns" and iTSns.RE_NS_ISO.match(ts):
+                return iTSns.ns_timestamp_from_iso(ts, utc) / 1e9
+            else:
+                try:
+                    return cls.timestamp_from_iso(ts, utc)
+                except Exception:
+                    pass
             try:
                 dt = date_util_parser.parse(ts)
                 if utc:
@@ -757,8 +774,9 @@ class iTSns(iBaseTS):
 
     UNITS_IN_SEC = 1_000_000_000
     PREC_STR = "ns"
+    RE_NS_ISO = re.compile(r".+\d\.\d{7,9}([^0-9].*)?$")
 
-    def __new__(cls, ts: Union[int, float, str], utc: bool = True):
+    def __new__(cls, ts: Union[int, str], utc: bool = True):
         if isinstance(ts, iTS):
             return iTSus(ts * 1_000_000_000)
         if isinstance(ts, iTSms):
@@ -772,20 +790,11 @@ class iTSns(iBaseTS):
             return int.__new__(cls, int_val)
         if isinstance(ts, Integral):
             return int.__new__(cls, ts)
-        if isinstance(ts, Real):
-            return int.__new__(cls, round(ts))
-        try:
-            int_val = int(ts)
-            return int.__new__(cls, int_val)
-        except ValueError:
-            pass
-        try:
-            dec = Decimal(ts)
-            rounded_int = dec.to_integral_value()
-            return int.__new__(cls, rounded_int)
-        except (ValueError, InvalidOperation):
-            pass
-        assert isinstance(ts, str), f"Invalid type for ts: {type(ts)}"
+        if isinstance(ts, str):
+            if cls.RE_NS_ISO.match(ts):
+                int_ts = cls.ns_timestamp_from_iso(ts, utc)
+                return int.__new__(cls, int_ts)
+
         float_val = cls._parse_to_float(ts, prec="ns", utc=utc)
         int_val = round(float_val * cls.UNITS_IN_SEC)
         return int.__new__(cls, int_val)
@@ -797,3 +806,37 @@ class iTSns(iBaseTS):
 
     def as_nsec(self) -> "iTSns":
         return self
+
+    def isoformat(self, sep='T', timespec="nanoseconds") -> str:
+        """
+        Return a string representing the date and time in ISO 8601 format:
+            YYYY-MM-DDTHH:MM:SS.ffffff, if microsecond is not 0
+            YYYY-MM-DDTHH:MM:SS, if microsecond is 0
+
+        If utcoffset() does not return None, a string is appended, giving the UTC offset:
+            YYYY-MM-DDTHH:MM:SS.ffffff+HH:MM[:SS[.ffffff]], if microsecond is not 0
+            YYYY-MM-DDTHH:MM:SS+HH:MM[:SS[.ffffff]], if microsecond is 0
+
+        - The optional argument sep (default 'T') is a one-character separator, placed between the date and time portions of the result.
+            For example: 2002-12-25T00:00:00-06:39
+
+        The optional argument timespec specifies the number of additional components of the time to include (the default is 'auto'). It can be one of the following:
+            'auto': Same as 'seconds' if microsecond is 0, same as 'microseconds' otherwise.
+            'hours': Include the hour in the two-digit HH format.
+            'minutes': Include hour and minute in HH:MM format.
+            'seconds': Include hour, minute, and second in HH:MM:SS format.
+            'milliseconds': Include full time, but truncate fractional second part to milliseconds. HH:MM:SS.sss format.
+            'microseconds': Include full time in HH:MM:SS.ffffff format.
+
+        Note: Excluded time components are truncated, not rounded.
+        """
+        if timespec == 'auto':
+            timespec = "nanoseconds"
+        if timespec != "nanoseconds":
+            return super().isoformat(sep=sep, timespec=timespec)
+        dt = np.datetime64(int(self), 'ns')
+        s = str(dt)
+        if sep != 'T':
+            s = s.replace('T', sep)
+        s = s + "Z"
+        return s

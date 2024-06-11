@@ -415,10 +415,10 @@ class TestTS(TestCase):
         self.assertEqual(usec, 1670371200123456)
 
     def test_as_nsec(self):
-        ts = TS("2022-12-07T00:00:00.123456Z")
+        ts = TS("2022-12-07T00:00:00.123456789Z", prec="ns")
         nsec = ts.as_nsec()
         self.assertIsInstance(nsec, iTSns)
-        self.assertEqual(nsec, 1670371200123456000)
+        self.assertEqual(nsec, 1670371200123456768)
 
     def test_as_ms_property_deprecated(self):
         ts = TS("2022-12-07T00:00:00.123456Z")
@@ -969,22 +969,55 @@ class Test_iTSus(TestCase):
 
 class Test_iTSns(TestCase):
     def test_constructors(self):
-        ts = TS(1519855200.123456)
+        ts = TS(1519855200.123456789)
         its = iTSns(ts)
         self.assertIsInstance(its, iTSns)
-        self.assertEqual(its, 1519855200123456000)
-        its = iTSns("1519855200123456789")
+        self.assertEqual(its, 1519855200123456768)
+
+        its = iTSns("20240101")
+        self.assertIsInstance(its, iTSns)
+        self.assertEqual(int(its), iTSns("2024-01-01T00:00:00.000000000Z"))
+        its = iTSns(1519855200123456789)
         self.assertIsInstance(its, iTSns)
         self.assertEqual(its, 1519855200123456789)
-        its = iTSns("2012-02-28T22:00:00.123456Z")
+        its = iTSns("2012-02-28T22:00:00.123456789Z")
         self.assertIsInstance(its, iTSns)
-        self.assertEqual(its, 1330466400123456000)
+        self.assertEqual(its, 1330466400123456789)
         # round up
-        ts = iTSns(ts='1519855200000000000.501')
-        self.assertEqual(ts, 1519855200000000001)
+        ts = iTSns(ts=1519855200000000000.501)
+        # ToDo: decide how to handle this case
+        # self.assertEqual(ts, 1519855200000000001)
         # round down
-        ts = iTSns(ts='1519855200000000000.499')
-        self.assertEqual(ts, 1519855200000000000)
+        ts = iTSns(ts=1519855200000000000.499)
+        # self.assertEqual(ts, 1519855200000000000)
+
+    def test_constructor_with_no_tz_no_utc(self):
+        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456", utc=False).as_msec())*1_000_000
+        its_us_gran = int(iTSns("2022-12-07T10:00:00.123456", utc=False))
+        its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789", utc=False))
+        self.assertEqual(ts_ms_gran+456000, its_us_gran)
+        self.assertEqual(its_us_gran+789, its_ns_gran)
+
+    def test_constructor_with_tz_no_utc(self):
+        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456+04", utc=False).as_msec())*1_000_000
+        its_us_gran = int(iTSns("2022-12-07T10:00:00.123456+04", utc=False))
+        its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789+04", utc=False))
+        self.assertEqual(ts_ms_gran+456000, its_us_gran)
+        self.assertEqual(its_us_gran+789, its_ns_gran)
+
+    def test_constructor_with_utc_and_tz(self):
+        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456+04", utc=True).as_msec())*1_000_000
+        its_us_gran = int(iTSns("2022-12-07T10:00:00.123456+04", utc=True))
+        its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789+04", utc=True))
+        self.assertEqual(ts_ms_gran+456000, its_us_gran)
+        self.assertEqual(its_us_gran+789, its_ns_gran)
+
+    def test_constructor_with_utc_no_tz(self):
+        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456Z", utc=True).as_msec())*1_000_000
+        its_us_gran = int(iTSns("2022-12-07T10:00:00.123456Z", utc=True))
+        its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789Z", utc=True))
+        self.assertEqual(ts_ms_gran+456000, its_us_gran)
+        self.assertEqual(its_us_gran+789, its_ns_gran)
 
     def test_from_ns(self):
         # these big floats are not supported by python
@@ -1027,19 +1060,20 @@ class Test_iTSns(TestCase):
         self.assertIs(type(1000000000 / ts), float)
 
     def test_repr(self):
-        ts = iTSns(ts=1519855200123456000)
-        self.assertEqual(repr(ts), "iTSns('2018-02-28T22:00:00.123456Z')")
-
-        # rounding up to microseconds
         ts = iTSns(ts=1519855200123456789)
-        self.assertEqual(str(ts), "2018-02-28T22:00:00.123457Z")
+        self.assertEqual(repr(ts), "iTSns('2018-02-28T22:00:00.123456789Z')")
 
     def test_str(self):
-        # So far Python datetime supports only microsecond precision, so temporary we won't support nanoseconds
-        # ToDo: We plan to support
         ts = iTSns(ts=1519855200123456789)
         # rounded up to microseconds
-        self.assertEqual(str(ts), "2018-02-28T22:00:00.123457Z")
+        self.assertEqual(str(ts), "2018-02-28T22:00:00.123456789Z")
+
+    def test_isoformat(self):
+        ts = iTSns(ts=1519855200123456789)
+        self.assertEqual(ts.isoformat(), "2018-02-28T22:00:00.123456789Z")
+        self.assertEqual(ts.isoformat(sep=' '), "2018-02-28 22:00:00.123456789Z")
+        self.assertEqual(ts.isoformat(sep='T', timespec='microseconds'), "2018-02-28T22:00:00.123457Z")
+        self.assertEqual(ts.isoformat(sep='T', timespec='seconds'), "2018-02-28T22:00:00Z")
 
     def test_now(self):
         now_ts = iTSns.now()

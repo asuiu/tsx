@@ -334,8 +334,13 @@ After instantiation, the TSMsec instance is identical to TS instance, and it inc
 
 ### Changelog
 
+##### 0.2.0
+- The iTSns now has real nanosecond precision (no roundings/approximations) by using the numpy.datetime64 class
+- Added the dependency on numpy >=1.8.0 for ns precision
+
 ##### 0.1.16
 - Fixed bug in iTS().__sub__ when performed operations with floats or other TS instances
+
 ##### 0.1.15
 - TS.as_dt() now is able to properly handle the big dates (year > 2038), which are causing overflow exceptions in Python datetime.fromtimestamp() stdlib functions
 - Added instantiation from Python datetime and date objects + proper handling of big dates (year > 2038) 
