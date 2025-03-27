@@ -6,7 +6,7 @@ from setuptools import setup
 __author__ = 'ASU'
 
 # Bump up this version
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 
 basedir = path.abspath(path.dirname(__file__))
 
@@ -56,9 +56,14 @@ parameters = dict(
         'License :: OSI Approved :: Apache Software License',
 
         # Specify the Python versions you support basedir.
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy"
     ],

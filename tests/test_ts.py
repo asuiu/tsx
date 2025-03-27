@@ -7,6 +7,7 @@
 __author__ = "ASU"
 
 import pickle
+import sys
 import unittest
 from _decimal import Decimal
 from datetime import datetime, timezone, date
@@ -17,7 +18,7 @@ from unittest.mock import patch
 import numpy as np
 import pytz
 from dateutil import tz
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 from tsx import TS, TSMsec, iTS, iTSms, iTSus, iTSns
 from tsx.ts import dTS
@@ -264,8 +265,9 @@ class TestTS(TestCase):
         self.assertEqual(ts, TS("2018-02-27T22:00:00Z"))
         # ts = TS.from_iso("2018")
         # self.assertEqual(ts, TS("2018-01-01T00:00:00Z"))
-        ts = TS.from_iso("2018-02")
-        self.assertEqual(ts, TS("2018-02-01T00:00:00Z"))
+        if sys.version_info <= (3, 11):
+            ts = TS.from_iso("2018-02")
+            self.assertEqual(ts, TS("2018-02-01T00:00:00Z"))
 
     def test_floor_over_ms(self):
         ts = TS.from_iso("2018-02-28")

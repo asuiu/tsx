@@ -10,25 +10,41 @@ import math
 import re
 import sys
 import warnings
-from _decimal import InvalidOperation
 from abc import ABC, abstractmethod, ABCMeta
 from datetime import datetime, timezone, tzinfo, timedelta, date, time
-from decimal import Decimal
 from numbers import Integral, Real, Number
 from time import time_ns
 from typing import Union, Optional, Tuple
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
+try:
+    from pydantic_core.core_schema import (list_schema as pydantic_list_schema, any_schema as pydantic_any_schema,
+                                           no_info_after_validator_function as pydantic_no_info_after_validator_function, general_plain_validator_function)
+except ImportError:
+    def __func_raising(*args, **kwargs):
+        raise ImportError("pydantic V2 is not installed")
+
+
+    pydantic_list_schema = __func_raising
+    pydantic_any_schema = __func_raising
+    pydantic_no_info_after_validator_function = __func_raising
+
 
 import ciso8601
 import numpy as np
 import pytz
 from dateutil import parser as date_util_parser
 from dateutil.relativedelta import relativedelta
-from typing_extensions import Literal
 
 if sys.version_info >= (3, 11):
     DEFAULT_ISO_PARSER = datetime.fromisoformat
 else:
     DEFAULT_ISO_PARSER = ciso8601.parse_datetime
+
 FIRST_MONDAY_TS = 345600
 DAY_SEC = 24 * 3600
 DAY_MSEC = DAY_SEC * 1000
@@ -162,6 +178,22 @@ class BaseTS(ABC, metaclass=ABCMeta):
                     f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}"
                 )
         raise TypeError(f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}")
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source, handler):
+        def validate_and_convert(value, *a, **kw):
+            if isinstance(value, cls):
+                return value
+            if isinstance(value, (str, Integral, Real)):
+                try:
+                    return cls(value)
+                except Exception:
+                    raise TypeError(
+                        f"{repr(value)} of class {type(value)} CAN'T be converted to {cls}"
+                    )
+            raise TypeError(f"{repr(value)} of class {type(value)} CAN'T be converted to {cls}")
+
+        return general_plain_validator_function(validate_and_convert)
 
     @classmethod
     def timestamp_from_iso(cls, ts: str, utc: bool = True) -> float:
@@ -334,13 +366,14 @@ class BaseTS(ABC, metaclass=ABCMeta):
         s = s.replace("+00:00", "Z")
         return s
 
-    def iso_basic(self) -> str:
+    def iso_basic(self, sep="-", use_zulu:bool=False) -> str:
         """
         Returns Basic ISO date format.
         Example: 20210101-000000
         """
         dt = self.as_dt()
-        s = dt.strftime("%Y%m%d-%H%M%S")
+        zulu_designator = "Z" if use_zulu else ""
+        s = dt.strftime(f"%Y%m%d{sep}%H%M%S{zulu_designator}")
         return s
 
     def as_sec(self) -> "iTS":
