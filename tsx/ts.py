@@ -22,16 +22,12 @@ else:
     from typing_extensions import Literal
 
 try:
-    from pydantic_core.core_schema import (list_schema as pydantic_list_schema, any_schema as pydantic_any_schema,
-                                           no_info_after_validator_function as pydantic_no_info_after_validator_function, general_plain_validator_function)
+    from pydantic_core.core_schema import ( general_plain_validator_function as pydantic_general_plain_validator_function)
 except ImportError:
     def __func_raising(*args, **kwargs):
         raise ImportError("pydantic V2 is not installed")
 
-
-    pydantic_list_schema = __func_raising
-    pydantic_any_schema = __func_raising
-    pydantic_no_info_after_validator_function = __func_raising
+    pydantic_general_plain_validator_function = __func_raising
 
 
 import ciso8601
@@ -193,7 +189,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
                     )
             raise TypeError(f"{repr(value)} of class {type(value)} CAN'T be converted to {cls}")
 
-        return general_plain_validator_function(validate_and_convert)
+        return pydantic_general_plain_validator_function(validate_and_convert)
 
     @classmethod
     def timestamp_from_iso(cls, ts: str, utc: bool = True) -> float:
