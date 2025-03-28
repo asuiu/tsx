@@ -2,6 +2,8 @@
 
 **T**ime **S**tamp e**X**tensions for Python
 
+[![Build Status](https://github.com/asuiu/tsx/actions/workflows/python-package.yml/badge.svg?branch=main)](https://github.com/asuiu/pyxtension/actions/workflows/python-package.yml)
+
 ###### Why tsx? 
 **tsx** was created as a response to the known Python datetime standard library flaw that violates ISO 8601. ( [Example](https://stackoverflow.com/questions/19654578/python-utc-datetime-objects-iso-format-doesnt-include-z-zulu-or-zero-offset) )
 
