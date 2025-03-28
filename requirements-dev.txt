@@ -2,4 +2,4 @@
 
 numpy
 twine
-pydantic==2.0.2
+pydantic==2.0.3
