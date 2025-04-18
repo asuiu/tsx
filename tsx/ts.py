@@ -210,12 +210,15 @@ class BaseTS(ABC, metaclass=ABCMeta):
         Attention: if timestamp has TZ info, it will ignore the utc parameter. It will allow any of ISO-8601 formats, but will not allow any other formats.
         If utc is False, we'll use the iTSms to compute the timestamp in milliseconds (as it properly computes the tzone), and just append the microseconds
         """
-        its = int(np.datetime64(ts))
-        if not utc:
+        ts_noZ = ts[:-1] if ts.endswith('Z') else ts
+        its = int(np.datetime64(ts_noZ, "ns"))
+        if utc or ts.endswith('Z'):
+            return its
+        else:
             itsms = int(iTSms(ts, utc)) * 1_000_000
             us = its % 1_000_000
             its = itsms + us
-        return its
+            return its
 
     @classmethod
     def _from_number(cls, ts: Union[float, int], prec: Literal["s", "ms", "us", "ns"]):

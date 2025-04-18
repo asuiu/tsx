@@ -21,7 +21,7 @@ from dateutil import tz
 from pydantic import BaseModel
 
 from tsx import TS, TSMsec, iTS, iTSms, iTSus, iTSns
-from tsx.ts import dTS
+from tsx.ts import dTS, BaseTS
 
 
 class TestTS(TestCase):
@@ -1092,6 +1092,20 @@ class Test_iTSns(TestCase):
         ts = iTSns("2022-12-07T00:00:00.123456Z")
         ts2 = pickle.loads(pickle.dumps(ts))
         self.assertEqual(ts, ts2)
+
+    def test_user_warning(self):
+        ts_str = '1970-01-01T00:00:00.100000000Z'
+
+        i_ns = BaseTS.ns_timestamp_from_iso(ts_str[:-1], utc=True)
+        self.assertEqual(i_ns, 100000000)
+
+
+        i_ns = BaseTS.ns_timestamp_from_iso(ts_str, utc=False)
+        self.assertEqual(i_ns, 100000000)
+
+        i_ns = BaseTS.ns_timestamp_from_iso(ts_str, utc=True)
+        self.assertEqual(i_ns, 100000000)
+
 
 
 if __name__ == "__main__":
