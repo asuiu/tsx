@@ -619,20 +619,28 @@ class TS(BaseTS, float):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.isoformat()!r})"
 
-    def __add__(self, x: Union[float, dTS]) -> "TS":
+    def __add__(self, x: Union[float, dTS, timedelta]) -> "TS":
         if isinstance(x, dTS):
             return TS(x._add(self.as_nsec()), prec="ns")
+        if isinstance(x, timedelta):
+            return TS(float(self) + x.total_seconds())
         return TS(float.__add__(self, x))
 
     def __radd__(self, other) -> "TS":
+        if isinstance(other, timedelta):
+            return TS(float(self) + other.total_seconds())
         return self.__add__(other)
 
-    def __sub__(self, x: float) -> "TS":
+    def __sub__(self, x: Union[float, dTS, timedelta]) -> "TS":
         if isinstance(x, dTS):
             return TS(x._sub(self.as_nsec()), prec='ns')
+        if isinstance(x, timedelta):
+            return TS(float(self) - x.total_seconds())
         return TS(float.__sub__(self, x))
 
-    def __rsub__(self, x: float) -> "TS":
+    def __rsub__(self, x) -> "TS":
+        if isinstance(x, timedelta):
+            return TS(x.total_seconds() - float(self))
         return TS(float.__rsub__(self, x))
 
 
@@ -690,17 +698,29 @@ class iBaseTS(BaseTS, int):
     def __int__(self) -> int:
         return round(self)
 
-    def __add__(self, x: Number) -> "BaseTS":
+    def __add__(self, x: Union[Number, timedelta]) -> "BaseTS":
+        if isinstance(x, timedelta):
+            delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
+            return type(self)(int(self) + delta_units)
         return type(self)(int(self) + x)
 
-    def __radd__(self, x: Number):
+    def __radd__(self, x: Union[Number, timedelta]):
+        if isinstance(x, timedelta):
+            delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
+            return type(self)(delta_units + int(self))
         return type(self)(x + int(self))
 
-    def __sub__(self, x: Number) -> "BaseTS":
+    def __sub__(self, x: Union[Number, timedelta]) -> "BaseTS":
+        if isinstance(x, timedelta):
+            delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
+            return type(self)(int(self) - delta_units)
         d = int(self) - x
         return type(self)(d)
 
-    def __rsub__(self, x: Number) -> "BaseTS":
+    def __rsub__(self, x: Union[Number, timedelta]) -> "BaseTS":
+        if isinstance(x, timedelta):
+            delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
+            return type(self)(delta_units - int(self))
         d = x - int(self)
         return type(self)(d)
 

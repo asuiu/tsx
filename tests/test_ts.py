@@ -10,7 +10,7 @@ import pickle
 import sys
 import unittest
 from _decimal import Decimal
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 from time import time, localtime, strftime, time_ns
 from unittest import TestCase
 from unittest.mock import patch
@@ -994,32 +994,32 @@ class Test_iTSns(TestCase):
         # self.assertEqual(ts, 1519855200000000000)
 
     def test_constructor_with_no_tz_no_utc(self):
-        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456", utc=False).as_msec())*1_000_000
+        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456", utc=False).as_msec()) * 1_000_000
         its_us_gran = int(iTSns("2022-12-07T10:00:00.123456", utc=False))
         its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789", utc=False))
-        self.assertEqual(ts_ms_gran+456000, its_us_gran)
-        self.assertEqual(its_us_gran+789, its_ns_gran)
+        self.assertEqual(ts_ms_gran + 456000, its_us_gran)
+        self.assertEqual(its_us_gran + 789, its_ns_gran)
 
     def test_constructor_with_tz_no_utc(self):
-        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456+04", utc=False).as_msec())*1_000_000
+        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456+04", utc=False).as_msec()) * 1_000_000
         its_us_gran = int(iTSns("2022-12-07T10:00:00.123456+04", utc=False))
         its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789+04", utc=False))
-        self.assertEqual(ts_ms_gran+456000, its_us_gran)
-        self.assertEqual(its_us_gran+789, its_ns_gran)
+        self.assertEqual(ts_ms_gran + 456000, its_us_gran)
+        self.assertEqual(its_us_gran + 789, its_ns_gran)
 
     def test_constructor_with_utc_and_tz(self):
-        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456+04", utc=True).as_msec())*1_000_000
+        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456+04", utc=True).as_msec()) * 1_000_000
         its_us_gran = int(iTSns("2022-12-07T10:00:00.123456+04", utc=True))
         its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789+04", utc=True))
-        self.assertEqual(ts_ms_gran+456000, its_us_gran)
-        self.assertEqual(its_us_gran+789, its_ns_gran)
+        self.assertEqual(ts_ms_gran + 456000, its_us_gran)
+        self.assertEqual(its_us_gran + 789, its_ns_gran)
 
     def test_constructor_with_utc_no_tz(self):
-        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456Z", utc=True).as_msec())*1_000_000
+        ts_ms_gran = int(TS("2022-12-07T10:00:00.123456Z", utc=True).as_msec()) * 1_000_000
         its_us_gran = int(iTSns("2022-12-07T10:00:00.123456Z", utc=True))
         its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789Z", utc=True))
-        self.assertEqual(ts_ms_gran+456000, its_us_gran)
-        self.assertEqual(its_us_gran+789, its_ns_gran)
+        self.assertEqual(ts_ms_gran + 456000, its_us_gran)
+        self.assertEqual(its_us_gran + 789, its_ns_gran)
 
     def test_from_ns(self):
         # these big floats are not supported by python
@@ -1106,6 +1106,255 @@ class Test_iTSns(TestCase):
         i_ns = BaseTS.ns_timestamp_from_iso(ts_str, utc=True)
         self.assertEqual(i_ns, 100000000)
 
+
+class TestTimedeltaOps(TestCase):
+    """Comprehensive tests for timedelta arithmetic operations across all timestamp classes."""
+
+    # Test data for parametrized tests
+    TIMEDELTA_TEST_CASES = [
+        # (timedelta_kwargs, description)
+        ({'days': 1}, 'single_day'),
+        ({'days': -1}, 'negative_day'),
+        ({'days': 1.5}, 'fractional_days'),
+        ({'seconds': 1}, 'single_second'),
+        ({'seconds': -1}, 'negative_second'),
+        ({'seconds': 1.5}, 'fractional_seconds'),
+        ({'seconds': 0.001}, 'millisecond_precision'),
+        ({'seconds': 0.000001}, 'microsecond_precision'),
+        ({'milliseconds': 1}, 'single_millisecond'),
+        ({'milliseconds': -1}, 'negative_millisecond'),
+        ({'milliseconds': 1.5}, 'fractional_milliseconds'),
+        ({'microseconds': 1}, 'single_microsecond'),
+        ({'microseconds': -1}, 'negative_microsecond'),
+        ({'microseconds': 1.5}, 'fractional_microseconds'),
+        ({'hours': 1}, 'single_hour'),
+        ({'hours': -1}, 'negative_hour'),
+        ({'minutes': 1}, 'single_minute'),
+        ({'minutes': -1}, 'negative_minute'),
+        ({'weeks': 1}, 'single_week'),
+        ({'weeks': -1}, 'negative_week'),
+        # Complex combinations
+        ({'days': 1, 'hours': 2, 'minutes': 3, 'seconds': 4.5}, 'complex_positive'),
+        ({'days': -1, 'hours': -2, 'minutes': -3, 'seconds': -4.5}, 'complex_negative'),
+        ({'days': 1, 'seconds': -3600}, 'mixed_signs'),
+    ]
+
+    def _test_ts_arithmetic_parametrized(self, ts_class, base_value, test_cases):
+        """Helper method for parametrized testing of timestamp arithmetic."""
+        base = ts_class(base_value)
+
+        # Define precision expectations for each timestamp class
+        precision_config = {
+            TS:    {'places': 9, 'tolerance': 0},  # Float precision
+            iTS:   {'places': 0, 'tolerance': 0.5},  # Second precision (±0.5s rounding)
+            iTSms: {'places': 3, 'tolerance': 0.001},  # Millisecond precision (±1ms for fractional rounding)
+            iTSus: {'places': 6, 'tolerance': 0.000001},  # Microsecond precision (±1μs for fractional rounding)
+            iTSns: {'places': 6, 'tolerance': 0.000001},  # Nanosecond precision limited by timedelta's microsecond resolution + float precision
+        }
+
+        config = precision_config[ts_class]
+
+        for td_kwargs, description in test_cases:
+            with self.subTest(ts_class=ts_class.__name__, case=description, kwargs=td_kwargs):
+                td = timedelta(**td_kwargs)
+
+                # Test addition
+                result_add = base + td
+                self.assertIsInstance(result_add, ts_class, f"Addition result should be {ts_class.__name__}")
+
+                # Verify time correctness with appropriate precision for each class
+                base_seconds = float(base.timestamp())
+                td_seconds = td.total_seconds()
+                expected_seconds = base_seconds + td_seconds
+                actual_seconds = float(result_add.timestamp())
+
+                if ts_class == TS:
+                    # Float-based: expect high precision
+                    self.assertAlmostEqual(actual_seconds, expected_seconds, places=config['places'],
+                                           msg=f"Time correctness failed for {description}: expected {expected_seconds}, got {actual_seconds}")
+                else:
+                    # Integer-based: account for rounding to class precision
+                    diff = abs(actual_seconds - expected_seconds)
+                    self.assertLessEqual(diff, config['tolerance'],
+                                         msg=f"Time correctness failed for {description}: expected {expected_seconds}, got {actual_seconds}, diff {diff} > tolerance {config['tolerance']}")
+
+                # Test reverse addition
+                result_radd = td + base
+                self.assertIsInstance(result_radd, ts_class, f"Reverse addition result should be {ts_class.__name__}")
+                self.assertEqual(result_add, result_radd, f"Addition and reverse addition should be equal")
+
+                # Test subtraction
+                result_sub = base - td
+                self.assertIsInstance(result_sub, ts_class, f"Subtraction result should be {ts_class.__name__}")
+
+                # Verify subtraction correctness
+                expected_sub_seconds = base_seconds - td_seconds
+                actual_sub_seconds = float(result_sub.timestamp())
+
+                if ts_class == TS:
+                    self.assertAlmostEqual(actual_sub_seconds, expected_sub_seconds, places=config['places'],
+                                           msg=f"Subtraction correctness failed for {description}")
+                else:
+                    diff_sub = abs(actual_sub_seconds - expected_sub_seconds)
+                    self.assertLessEqual(diff_sub, config['tolerance'],
+                                         msg=f"Subtraction correctness failed for {description}: diff {diff_sub} > tolerance {config['tolerance']}")
+
+                # Test reverse subtraction
+                result_rsub = td - base
+                self.assertIsInstance(result_rsub, ts_class, f"Reverse subtraction result should be {ts_class.__name__}")
+
+                # Verify arithmetic consistency: (base + td) - td == base
+                if ts_class in [TS]:  # Float-based classes
+                    self.assertAlmostEqual(float((base + td) - td), float(base), places=9,
+                                           msg=f"Arithmetic consistency failed for {description}")
+                else:  # Integer-based classes - allow for rounding differences
+                    diff = abs(int((base + td) - td) - int(base))
+                    self.assertLessEqual(diff, 1,
+                                         msg=f"Arithmetic consistency failed for {description} (diff: {diff})")
+
+    def test_TS_timedelta_comprehensive(self):
+        """Comprehensive parametrized tests for TS class."""
+        self._test_ts_arithmetic_parametrized(TS, "2018-02-28T22:00:00Z", self.TIMEDELTA_TEST_CASES)
+
+    def test_iTS_timedelta_comprehensive(self):
+        """Comprehensive parametrized tests for iTS class."""
+        self._test_ts_arithmetic_parametrized(iTS, "2018-02-28T22:00:00Z", self.TIMEDELTA_TEST_CASES)
+
+    def test_iTSms_timedelta_comprehensive(self):
+        """Comprehensive parametrized tests for iTSms class."""
+        self._test_ts_arithmetic_parametrized(iTSms, "2018-02-28T22:00:00Z", self.TIMEDELTA_TEST_CASES)
+
+    def test_iTSus_timedelta_comprehensive(self):
+        """Comprehensive parametrized tests for iTSus class."""
+        self._test_ts_arithmetic_parametrized(iTSus, "2018-02-28T22:00:00Z", self.TIMEDELTA_TEST_CASES)
+
+    def test_iTSns_timedelta_comprehensive(self):
+        """Comprehensive parametrized tests for iTSns class."""
+        self._test_ts_arithmetic_parametrized(iTSns, "2018-02-28T22:00:00Z", self.TIMEDELTA_TEST_CASES)
+
+    def test_timedelta_precision_edge_cases(self):
+        """Test precision handling and edge cases for different timestamp classes."""
+
+        # Test rounding behavior for integer classes
+        base_its = iTS(10)
+        self.assertEqual(base_its + timedelta(seconds=0.4), iTS(10), "iTS should round 0.4s to 0")
+        self.assertEqual(base_its + timedelta(seconds=0.5), iTS(10), "iTS should round 0.5s to 0 (banker's rounding)")
+        self.assertEqual(base_its + timedelta(seconds=0.6), iTS(11), "iTS should round 0.6s to 1")
+        self.assertEqual(base_its + timedelta(seconds=1.5), iTS(12), "iTS should round 1.5s to 2")
+
+        base_itsms = iTSms(1000)
+        self.assertEqual(base_itsms + timedelta(milliseconds=0.4), iTSms(1000), "iTSms should round 0.4ms to 0")
+        self.assertEqual(base_itsms + timedelta(milliseconds=0.5), iTSms(1000), "iTSms should round 0.5ms to 0")
+        self.assertEqual(base_itsms + timedelta(milliseconds=0.6), iTSms(1001), "iTSms should round 0.6ms to 1")
+
+        base_itsus = iTSus(1000)
+        self.assertEqual(base_itsus + timedelta(microseconds=0.4), iTSus(1000), "iTSus should round 0.4μs to 0")
+        self.assertEqual(base_itsus + timedelta(microseconds=0.5), iTSus(1000), "iTSus should round 0.5μs to 0")
+        self.assertEqual(base_itsus + timedelta(microseconds=0.6), iTSus(1001), "iTSus should round 0.6μs to 1")
+
+        # Test nanosecond precision - timedelta only supports microsecond precision (1000ns)
+        base_itsns = iTSns(1000)
+        # 1 microsecond = 1000 nanoseconds
+        self.assertEqual(base_itsns + timedelta(microseconds=1), iTSns(2000))
+        # Test with whole microseconds for reliable precision
+        self.assertEqual(base_itsns + timedelta(microseconds=2), iTSns(3000))
+        # timedelta minimum resolution is 1 microsecond, so smaller values are not supported
+
+    def test_timedelta_zero_operations(self):
+        """Test operations with zero timedelta."""
+        zero_td = timedelta(0)
+
+        for ts_class in [TS, iTS, iTSms, iTSus, iTSns]:
+            with self.subTest(ts_class=ts_class.__name__):
+                base = ts_class("2018-02-28T22:00:00Z")
+
+                # Adding/subtracting zero should return equivalent timestamp
+                self.assertEqual(base + zero_td, base)
+                self.assertEqual(zero_td + base, base)
+                self.assertEqual(base - zero_td, base)
+
+                # zero - base should equal -base (in seconds)
+                if ts_class == TS:
+                    self.assertEqual(zero_td - base, TS(-float(base)))
+                else:
+                    expected_val = -int(base.timestamp() * ts_class.UNITS_IN_SEC)
+                    self.assertEqual(zero_td - base, ts_class(expected_val))
+
+    def test_timedelta_large_values(self):
+        """Test operations with large timedelta values."""
+        large_positive = timedelta(days=365 * 100)  # 100 years
+        large_negative = timedelta(days=-365 * 100)  # -100 years
+
+        base = TS("2018-02-28T22:00:00Z")
+
+        # Test large positive
+        result_pos = base + large_positive
+        self.assertIsInstance(result_pos, TS)
+        self.assertGreater(result_pos, base)
+
+        # Test large negative
+        result_neg = base + large_negative
+        self.assertIsInstance(result_neg, TS)
+        self.assertLess(result_neg, base)
+
+        # Test reverse operations
+        self.assertEqual(large_positive + base, result_pos)
+        self.assertEqual(large_negative + base, result_neg)
+
+    def test_timedelta_fractional_precision(self):
+        """Test fractional precision handling across different units."""
+        base = TS("2018-02-28T22:00:00Z")
+
+        # Test fractional days
+        result = base + timedelta(days=1.5)
+        expected = base + timedelta(hours=36)
+        self.assertEqual(result, expected)
+
+        # Test fractional hours
+        result = base + timedelta(hours=2.5)
+        expected = base + timedelta(hours=2, minutes=30)
+        self.assertEqual(result, expected)
+
+        # Test fractional minutes
+        result = base + timedelta(minutes=1.5)
+        expected = base + timedelta(minutes=1, seconds=30)
+        self.assertEqual(result, expected)
+
+        # Test very small fractions
+        result = base + timedelta(microseconds=0.1)
+        # Should be effectively zero for TS precision
+        self.assertAlmostEqual(float(result), float(base), places=9)
+
+    def test_timedelta_mixed_units_combinations(self):
+        """Test complex timedelta combinations with mixed positive/negative units."""
+        base = TS("2018-02-28T22:00:00Z")
+
+        # Test mixed signs that cancel out
+        td_cancel = timedelta(days=1, hours=-24)
+        result = base + td_cancel
+        self.assertEqual(result, base)
+
+        # Test complex combination
+        td_complex = timedelta(
+            weeks=1,
+            days=2,
+            hours=3,
+            minutes=4,
+            seconds=5,
+            milliseconds=6,
+            microseconds=7
+        )
+
+        result = base + td_complex
+        self.assertIsInstance(result, TS)
+        self.assertGreater(result, base)
+
+        # Verify reverse operation
+        self.assertEqual(td_complex + base, result)
+
+        # Test that subtraction is inverse of addition
+        back_to_base = result - td_complex
+        self.assertAlmostEqual(float(back_to_base), float(base), places=9)
 
 
 if __name__ == "__main__":
