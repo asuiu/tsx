@@ -16,13 +16,13 @@ from numbers import Integral, Real, Number
 from time import time_ns
 from typing import Union, Optional, Tuple
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+try:
+    from typing import Self, Literal
+except ImportError:
+    from typing_extensions import Literal, Self
 
 try:
-    from pydantic_core.core_schema import ( general_plain_validator_function as pydantic_general_plain_validator_function)
+    from pydantic_core.core_schema import (general_plain_validator_function as pydantic_general_plain_validator_function)
 except ImportError:
     def __func_raising(*args, **kwargs):
         raise ImportError("pydantic V2 is not installed")
@@ -365,7 +365,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
         s = s.replace("+00:00", "Z")
         return s
 
-    def iso_basic(self, sep="-", use_zulu:bool=False) -> str:
+    def iso_basic(self, sep="-", use_zulu: bool = False) -> str:
         """
         Returns Basic ISO date format.
         Example: 20210101-000000
@@ -656,14 +656,14 @@ class iBaseTS(BaseTS, int):
     PREC_STR: str = None
 
     @classmethod
-    def now(cls) -> "iBaseTS":
+    def now(cls) -> Self:
         tns = time_ns()
         precision = 1_000_000_000 // cls.UNITS_IN_SEC
         rounded_val = round(tns / precision)
         return cls(rounded_val)
 
     @classmethod
-    def from_iso(cls, ts: str, utc: bool = True) -> "iBaseTS":
+    def from_iso(cls, ts: str, utc: bool = True) -> Self:
         """
         Attention: if timestamp has TZ info, it will ignore the utc parameter
         This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
@@ -675,7 +675,7 @@ class iBaseTS(BaseTS, int):
     def timestamp(self) -> "TS":
         return TS(self, prec=self.PREC_STR)
 
-    def floor(self, unit: int) -> "iBaseTS":
+    def floor(self, unit: int) -> Self:
         """
         Returns the timestamp floored to the specified unit.
 
@@ -685,7 +685,7 @@ class iBaseTS(BaseTS, int):
         floored_int = (self // unit) * unit
         return type(self)(floored_int)
 
-    def ceil(self, unit: int) -> "iBaseTS":
+    def ceil(self, unit: int) -> Self:
         """
         Returns the timestamp ceiled to the specified unit
         :param unit: the unit to ceil in seconds
@@ -698,26 +698,26 @@ class iBaseTS(BaseTS, int):
     def __int__(self) -> int:
         return round(self)
 
-    def __add__(self, x: Union[Number, timedelta]) -> "BaseTS":
+    def __add__(self, x: Union[Number, timedelta]) -> Self:
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(int(self) + delta_units)
         return type(self)(int(self) + x)
 
-    def __radd__(self, x: Union[Number, timedelta]):
+    def __radd__(self, x: Union[Number, timedelta]) -> Self:
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(delta_units + int(self))
         return type(self)(x + int(self))
 
-    def __sub__(self, x: Union[Number, timedelta]) -> "BaseTS":
+    def __sub__(self, x: Union[Number, timedelta]) -> Self:
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(int(self) - delta_units)
         d = int(self) - x
         return type(self)(d)
 
-    def __rsub__(self, x: Union[Number, timedelta]) -> "BaseTS":
+    def __rsub__(self, x: Union[Number, timedelta]) -> Self:
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(delta_units - int(self))
@@ -852,7 +852,7 @@ class iTSns(iBaseTS):
         return int.__new__(cls, int_val)
 
     @classmethod
-    def now(cls) -> "iBaseTS":
+    def now(cls) -> Self:
         tns = time_ns()
         return cls(tns)
 
