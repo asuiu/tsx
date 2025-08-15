@@ -483,6 +483,35 @@ class TestBaseTS(TestCase):
         self.assertIsInstance(ts.timestamp(), float)
         self.assertEqual(ts.timestamp(), 1519855200.123)
 
+    def test_from_ints(self):
+        ts = iTS.from_parts_utc(2022, 12, 7, 1, 2, 3, 999, 999, 999)
+        self.assertEqual(ts, iTS("2022-12-07T01:02:03Z"))
+
+        ts = iTS.from_parts_utc(2022, 12, 7, 1, 2, 3, 999, 999, 999)
+        self.assertEqual(ts, iTS("2022-12-07T01:02:03"))
+
+        ts = iTSms.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 999, 999)
+        self.assertEqual(ts, iTSms("2022-12-07T01:02:03.456Z"))
+
+        ts = iTSus.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 789, 999)
+        self.assertEqual(ts, iTSus("2022-12-07T01:02:03.456789Z"))
+
+        ts = iTSns.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 789, 999)
+        self.assertEqual(ts, iTSns("2022-12-07T01:02:03.456789999Z"))
+
+        ts = TS.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 789, 999)
+        self.assertEqual(ts, TS("2022-12-07T01:02:03.456790Z"))  # we don't have enough float precision to represent nanos
+
+        ts = TS.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 789, 123)
+        self.assertEqual(ts, TS("2022-12-07T01:02:03.456789Z"))  # we don't have enough float precision to represent nanos
+
+        ts = TSMsec.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 789, 123)
+        self.assertEqual(ts, TSMsec("2022-12-07T01:02:03.456789Z"))  # we don't have enough float precision to represent nanos
+        ts = TSMsec.from_parts_utc(2022, 12, 7, 1, 2, 3, 456)
+        self.assertEqual(ts, TSMsec("2022-12-07T01:02:03.456Z"))
+        ts = TS.from_parts_utc(2022, 12, 7, 1, 2, 3)
+        self.assertEqual(ts, TS("2022-12-07T01:02:03Z"))
+
 
 class Test_iTS(TestCase):
     def test_iTS_constructors(self):
@@ -1098,7 +1127,6 @@ class Test_iTSns(TestCase):
 
         i_ns = BaseTS.ns_timestamp_from_iso(ts_str[:-1], utc=True)
         self.assertEqual(i_ns, 100000000)
-
 
         i_ns = BaseTS.ns_timestamp_from_iso(ts_str, utc=False)
         self.assertEqual(i_ns, 100000000)

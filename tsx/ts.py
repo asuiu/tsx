@@ -17,9 +17,9 @@ from time import time_ns
 from typing import Union, Optional, Tuple
 
 try:
-    from typing import Self, Literal
+    from typing import Self, Literal, override
 except ImportError:
-    from typing_extensions import Literal, Self
+    from typing_extensions import Literal, Self, override
 
 try:
     from pydantic_core.core_schema import (general_plain_validator_function as pydantic_general_plain_validator_function)
@@ -27,8 +27,8 @@ except ImportError:
     def __func_raising(*args, **kwargs):
         raise ImportError("pydantic V2 is not installed")
 
-    pydantic_general_plain_validator_function = __func_raising
 
+    pydantic_general_plain_validator_function = __func_raising
 
 import ciso8601
 import numpy as np
@@ -190,6 +190,15 @@ class BaseTS(ABC, metaclass=ABCMeta):
             raise TypeError(f"{repr(value)} of class {type(value)} CAN'T be converted to {cls}")
 
         return pydantic_general_plain_validator_function(validate_and_convert)
+
+    @classmethod
+    def from_parts_utc(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0) -> Self:
+        dt = datetime(y, m, d, hh, mm, ss, ms * 1000 + us, tzinfo=timezone.utc)
+        if ns != 0:
+            f = dt.timestamp()
+            f += ns / 1e9
+            return cls(f)
+        return cls(dt)
 
     @classmethod
     def timestamp_from_iso(cls, ts: str, utc: bool = True) -> float:
@@ -445,7 +454,6 @@ class BaseTS(ABC, metaclass=ABCMeta):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.isoformat()!r})"
 
-
 class TS(BaseTS, float):
     """
     Represents Unix timestamp in seconds since Epoch, by default in UTC.
@@ -643,6 +651,15 @@ class TS(BaseTS, float):
             return TS(x.total_seconds() - float(self))
         return TS(float.__rsub__(self, x))
 
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, TS):
+            # we assume microsecond precision for TS since the float doesn't have enough precision for more
+            return abs(float(self) - float(o)) < 1e-6
+        return float(self) == o
+
+    def __ne__(self, o: object) -> bool:
+        return not self.__eq__(o)
+
 
 class TSMsec(TS):
     def __new__(cls, ts: Union[int, float, str], prec: Literal["s", "ms"] = "ms"):
@@ -650,10 +667,29 @@ class TSMsec(TS):
             return ts
         return super().__new__(TS, ts, prec)
 
+    @classmethod
+    def from_parts_utc(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0) -> Self:
+        dt = datetime(y, m, d, hh, mm, ss, ms * 1000 + us, tzinfo=timezone.utc)
+        return cls(dt)
+
 
 class iBaseTS(BaseTS, int):
-    UNITS_IN_SEC: int = None
-    PREC_STR: str = None
+    UNITS_IN_SEC: int
+    UNITS_IN_MS:int
+    UNITS_IN_US:int
+    UNITS_IN_NS:int
+
+    PREC_STR: str
+
+    @override
+    @classmethod
+    def from_parts_utc(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0) -> Self:
+        dt = datetime(y, m, d, hh, mm, ss, tzinfo=timezone.utc)
+        i = round(dt.timestamp()) * cls.UNITS_IN_SEC
+
+
+        i += (ms * cls.UNITS_IN_MS) + (us * cls.UNITS_IN_US) + ns * cls.UNITS_IN_NS
+        return cls(i)
 
     @classmethod
     def now(cls) -> Self:
@@ -724,6 +760,15 @@ class iBaseTS(BaseTS, int):
         d = x - int(self)
         return type(self)(d)
 
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, iBaseTS):
+            # we assume microsecond precision for TS since the float doesn't have enough precision for more
+            return int.__eq__(self, o)
+        return int(self) == o
+
+    def __ne__(self, o: object) -> bool:
+        return not self.__eq__(o)
+
 
 class iTS(iBaseTS):
     """
@@ -732,6 +777,10 @@ class iTS(iBaseTS):
     This class is a subclass of int, so it can be used as an int, but it also has some extra methods.
     """
     UNITS_IN_SEC: int = 1
+    UNITS_IN_MS = UNITS_IN_SEC // 1_000
+    UNITS_IN_US = UNITS_IN_SEC // 1_000_000
+    UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+
     PREC_STR: str = "s"
 
     def __new__(cls, ts: Union[int, float, str], utc: bool = True):
@@ -762,6 +811,10 @@ class iTSms(iBaseTS):
     """
 
     UNITS_IN_SEC: int = 1_000
+    UNITS_IN_MS = UNITS_IN_SEC // 1_000
+    UNITS_IN_US = UNITS_IN_SEC // 1_000_000
+    UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+
     PREC_STR: str = "ms"
 
     def __new__(cls, ts: Union[int, float, str], utc: bool = True):
@@ -791,6 +844,10 @@ class iTSus(iBaseTS):
     This class is a subclass of int, so it can be used as an int, but it also has some extra methods.
     """
     UNITS_IN_SEC = 1_000_000
+    UNITS_IN_MS = UNITS_IN_SEC // 1_000
+    UNITS_IN_US = UNITS_IN_SEC // 1_000_000
+    UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+
     PREC_STR = "us"
 
     def __new__(cls, ts: Union[int, float, str], utc: bool = True):
@@ -825,6 +882,10 @@ class iTSns(iBaseTS):
     """
 
     UNITS_IN_SEC = 1_000_000_000
+    UNITS_IN_MS = UNITS_IN_SEC // 1_000
+    UNITS_IN_US = UNITS_IN_SEC // 1_000_000
+    UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+
     PREC_STR = "ns"
     RE_NS_ISO = re.compile(r".+\d\.\d{7,9}([^0-9].*)?$")
 
