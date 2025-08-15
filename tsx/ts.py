@@ -405,12 +405,13 @@ class BaseTS(ABC, metaclass=ABCMeta):
         """
         return iTSus(round(self.timestamp() * 1_000_000))
 
+    @abstractmethod
     def as_nsec(self) -> "iTSns":
         """
         Converts to iTSns (integer timestamp in nanoseconds)
         Note: it will round the timestamp to nanoseconds
         """
-        return iTSns(round(self.timestamp() * 1_000_000_000))
+        raise NotImplementedError()
 
     @abstractmethod
     def floor(self, unit: Union[int, float]) -> "BaseTS":
@@ -453,6 +454,26 @@ class BaseTS(ABC, metaclass=ABCMeta):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.isoformat()!r})"
+
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            # we assume microsecond precision for TS since the float doesn't have enough precision for more
+            return int.__eq__(self.as_nsec(), o.as_nsec())
+        if isinstance(o, Number):
+            return abs(float(self) - o) < 1e-6
+        return False
+
+    def __ne__(self, o: object) -> bool:
+        return not self.__eq__(o)
+
+    def __hash__(self) -> int:
+        """
+        We compute the seconds and nanoseconds as separate ints, make their sum and hash over this sum,
+        in this way we avoid the hash collisions for the same timestamp with different precisions
+        """
+        nsec = self.as_nsec()
+        return int.__hash__(nsec)
+
 
 class TS(BaseTS, float):
     """
@@ -566,6 +587,13 @@ class TS(BaseTS, float):
         warnings.warn(f"Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
         return iTS(self)
 
+    @override
+    def as_nsec(self) -> "iTSns":
+        """
+        We limit the TS precision to usec, since float doesn't have enough precision for nanoseconds
+        """
+        return iTSns(self.as_usec() * 1_000)
+
     def to_sec(self) -> "iTS":
         """
         Represents Unix timestamp in seconds since Epoch
@@ -651,15 +679,6 @@ class TS(BaseTS, float):
             return TS(x.total_seconds() - float(self))
         return TS(float.__rsub__(self, x))
 
-    def __eq__(self, o: object) -> bool:
-        if isinstance(o, TS):
-            # we assume microsecond precision for TS since the float doesn't have enough precision for more
-            return abs(float(self) - float(o)) < 1e-6
-        return float(self) == o
-
-    def __ne__(self, o: object) -> bool:
-        return not self.__eq__(o)
-
 
 class TSMsec(TS):
     def __new__(cls, ts: Union[int, float, str], prec: Literal["s", "ms"] = "ms"):
@@ -675,9 +694,10 @@ class TSMsec(TS):
 
 class iBaseTS(BaseTS, int):
     UNITS_IN_SEC: int
-    UNITS_IN_MS:int
-    UNITS_IN_US:int
-    UNITS_IN_NS:int
+    UNITS_IN_MS: int
+    UNITS_IN_US: int
+    UNITS_IN_NS: int
+    NANOS_PER_UNIT: int
 
     PREC_STR: str
 
@@ -686,7 +706,6 @@ class iBaseTS(BaseTS, int):
     def from_parts_utc(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0) -> Self:
         dt = datetime(y, m, d, hh, mm, ss, tzinfo=timezone.utc)
         i = round(dt.timestamp()) * cls.UNITS_IN_SEC
-
 
         i += (ms * cls.UNITS_IN_MS) + (us * cls.UNITS_IN_US) + ns * cls.UNITS_IN_NS
         return cls(i)
@@ -731,6 +750,10 @@ class iBaseTS(BaseTS, int):
         # ceiled_int = math.ceil(self / unit) * unit
         return type(self)(ceiled_int)
 
+    @override
+    def as_nsec(self) -> "iTSns":
+        return iTSns(self * self.NANOS_PER_UNIT)
+
     def __int__(self) -> int:
         return round(self)
 
@@ -760,15 +783,6 @@ class iBaseTS(BaseTS, int):
         d = x - int(self)
         return type(self)(d)
 
-    def __eq__(self, o: object) -> bool:
-        if isinstance(o, iBaseTS):
-            # we assume microsecond precision for TS since the float doesn't have enough precision for more
-            return int.__eq__(self, o)
-        return int(self) == o
-
-    def __ne__(self, o: object) -> bool:
-        return not self.__eq__(o)
-
 
 class iTS(iBaseTS):
     """
@@ -780,6 +794,7 @@ class iTS(iBaseTS):
     UNITS_IN_MS = UNITS_IN_SEC // 1_000
     UNITS_IN_US = UNITS_IN_SEC // 1_000_000
     UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+    NANOS_PER_UNIT = 1_000_000_000 // UNITS_IN_SEC
 
     PREC_STR: str = "s"
 
@@ -814,6 +829,7 @@ class iTSms(iBaseTS):
     UNITS_IN_MS = UNITS_IN_SEC // 1_000
     UNITS_IN_US = UNITS_IN_SEC // 1_000_000
     UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+    NANOS_PER_UNIT = 1_000_000_000 // UNITS_IN_SEC
 
     PREC_STR: str = "ms"
 
@@ -847,6 +863,7 @@ class iTSus(iBaseTS):
     UNITS_IN_MS = UNITS_IN_SEC // 1_000
     UNITS_IN_US = UNITS_IN_SEC // 1_000_000
     UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+    NANOS_PER_UNIT = 1_000_000_000 // UNITS_IN_SEC
 
     PREC_STR = "us"
 
@@ -885,6 +902,7 @@ class iTSns(iBaseTS):
     UNITS_IN_MS = UNITS_IN_SEC // 1_000
     UNITS_IN_US = UNITS_IN_SEC // 1_000_000
     UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+    NANOS_PER_UNIT = 1_000_000_000 // UNITS_IN_SEC
 
     PREC_STR = "ns"
     RE_NS_ISO = re.compile(r".+\d\.\d{7,9}([^0-9].*)?$")
@@ -899,8 +917,7 @@ class iTSns(iBaseTS):
         if isinstance(ts, iTSns):
             return ts
         if isinstance(ts, TS):
-            int_val = round(ts.timestamp() * cls.UNITS_IN_SEC)
-            return int.__new__(cls, int_val)
+            return ts.as_nsec()
         if isinstance(ts, Integral):
             return int.__new__(cls, ts)
         if isinstance(ts, str):

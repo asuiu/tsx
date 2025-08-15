@@ -420,7 +420,11 @@ class TestTS(TestCase):
         ts = TS("2022-12-07T00:00:00.123456789Z", prec="ns")
         nsec = ts.as_nsec()
         self.assertIsInstance(nsec, iTSns)
-        self.assertEqual(nsec, 1670371200123456768)
+        self.assertEqual(nsec, 1670371200123457000)
+        ts2 = TS(1670371200123456789, prec="ns")
+        nsec2 = ts2.as_nsec()
+        self.assertIsInstance(nsec2, iTSns)
+        self.assertEqual(nsec2, 1670371200123457000)
 
     def test_as_ms_property_deprecated(self):
         ts = TS("2022-12-07T00:00:00.123456Z")
@@ -478,6 +482,34 @@ class TestTS(TestCase):
 
 
 class TestBaseTS(TestCase):
+    def test_hash(self):
+        """
+        The hash of all the timestamp classes should be the same for the same timestamp,
+        no matter the precision. All of them are reduced to the ns before hashing.
+        """
+        ts = TS("2018-02-28T01:01:01.123Z")
+        d = {ts: 1}
+        ts2 = TSMsec("2018-02-28T01:01:01.123Z")
+        self.assertEqual(d[ts2], 1)
+        f = float(ts)
+        ts3 = TS(f)
+        self.assertEqual(d[ts3], 1)
+        its_ms = iTSms(ts)
+        self.assertEqual(its_ms, ts)
+        self.assertEqual(d[its_ms], 1)
+
+        self.assertEqual(its_ms, ts2)
+        its2 = iTSms(ts3)
+        self.assertEqual(d[its2], 1)
+        its_us = iTSus(ts)
+        self.assertEqual(d[its_us], 1)
+        its_ns = iTSns(ts)
+        self.assertEqual(d[its_ns], 1)
+
+        ts = TS("2018-02-28T01:01:01")
+        d_sec = {ts: 1}
+        self.assertEqual(d_sec[iTS(ts)], 1)
+
     def test_timestamp(self):
         ts = TS(1519855200.123)
         self.assertIsInstance(ts.timestamp(), float)
@@ -1003,7 +1035,7 @@ class Test_iTSns(TestCase):
         ts = TS(1519855200.123456789)
         its = iTSns(ts)
         self.assertIsInstance(its, iTSns)
-        self.assertEqual(its, 1519855200123456768)
+        self.assertEqual(its, 1519855200123457000)
 
         its = iTSns("20240101")
         self.assertIsInstance(its, iTSns)
