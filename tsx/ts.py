@@ -12,6 +12,7 @@ import sys
 import warnings
 from abc import ABC, abstractmethod, ABCMeta
 from datetime import datetime, timezone, tzinfo, timedelta, date, time
+from functools import total_ordering
 from numbers import Integral, Real, Number
 from time import time_ns
 from typing import Union, Optional, Tuple
@@ -156,7 +157,7 @@ class dTS:
     def __radd__(self, other):
         return self.__add__(other)
 
-
+@total_ordering
 class BaseTS(ABC, metaclass=ABCMeta):
     @classmethod
     def __get_validators__(cls):
@@ -466,6 +467,11 @@ class BaseTS(ABC, metaclass=ABCMeta):
     def __ne__(self, o: object) -> bool:
         return not self.__eq__(o)
 
+    def __lt__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            return int.__lt__(self.as_nsec(), o.as_nsec())
+        return False
+
     def __hash__(self) -> int:
         """
         We compute the seconds and nanoseconds as separate ints, make their sum and hash over this sum,
@@ -679,6 +685,14 @@ class TS(BaseTS, float):
             return TS(x.total_seconds() - float(self))
         return TS(float.__rsub__(self, x))
 
+    def __lt__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            return int.__lt__(self.as_nsec(), o.as_nsec())
+        if isinstance(o, Number):
+            return float.__lt__(self, float(o))
+        return False
+
+
 
 class TSMsec(TS):
     def __new__(cls, ts: Union[int, float, str], prec: Literal["s", "ms"] = "ms"):
@@ -783,6 +797,27 @@ class iBaseTS(BaseTS, int):
         d = x - int(self)
         return type(self)(d)
 
+    def __lt__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            return int.__lt__(self.as_nsec(), o.as_nsec())
+        if isinstance(o, Real):
+            return int(self) < o
+        return False
+
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            return int.__eq__(self.as_nsec(), o.as_nsec())
+        if isinstance(o, Real):
+            return int.__eq__(int(self),o)
+        return False
+
+    def __ne__(self, o: object) -> bool:
+        return not self.__eq__(o)
+
+    def __hash__(self) -> int:
+        # Keep hash consistent with __eq__ which compares nanoseconds via as_nsec()
+        nsec = self.as_nsec()
+        return int.__hash__(nsec)
 
 class iTS(iBaseTS):
     """
@@ -835,7 +870,7 @@ class iTSms(iBaseTS):
 
     def __new__(cls, ts: Union[int, float, str], utc: bool = True):
         if isinstance(ts, iTS):
-            return iTSus(ts * 1_000)
+            return int.__new__(cls, ts * 1_000)
         if isinstance(ts, iTSms):
             return ts
         if isinstance(ts, iTSus):
@@ -869,7 +904,7 @@ class iTSus(iBaseTS):
 
     def __new__(cls, ts: Union[int, float, str], utc: bool = True):
         if isinstance(ts, iTS):
-            return iTSus(ts * 1_000_000)
+            return int.__new__(cls, ts * 1_000_000)
         if isinstance(ts, iTSms):
             return int.__new__(cls, ts * 1_000)
         if isinstance(ts, iTSus):
@@ -909,7 +944,7 @@ class iTSns(iBaseTS):
 
     def __new__(cls, ts: Union[int, str], utc: bool = True):
         if isinstance(ts, iTS):
-            return iTSus(ts * 1_000_000_000)
+            return int.__new__(cls, ts * 1_000_000_000)
         if isinstance(ts, iTSms):
             return int.__new__(cls, ts * 1_000_000)
         if isinstance(ts, iTSus):

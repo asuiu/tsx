@@ -544,6 +544,71 @@ class TestBaseTS(TestCase):
         ts = TS.from_parts_utc(2022, 12, 7, 1, 2, 3)
         self.assertEqual(ts, TS("2022-12-07T01:02:03Z"))
 
+    def test_comparisons(self):
+        ts1 = TS("2022-12-07T00:00:00.000001Z")
+        ts2 = TS("2022-12-07T00:00:00.000002Z")
+        its1 = iTS("2022-12-07T00:00:00Z")
+        its2 = iTS("2022-12-07T00:00:01Z")
+        self.assertNotEqual(ts1, ts2)
+        self.assertLess(ts1, ts2)
+        self.assertGreater(ts2, ts1)
+        self.assertLess(its1, its2)
+        self.assertGreater(its2, its1)
+        self.assertLess(ts1, its2)
+        self.assertGreater(its2, ts1)
+        self.assertLess(its1, ts2)
+        self.assertGreater(ts2, its1)
+
+        itsms1 = iTSms("2022-12-07T00:00:00.001Z")
+        itsms2 = iTSms("2022-12-07T00:00:00.002Z")
+        self.assertNotEqual(itsms1, itsms2)
+        self.assertLess(itsms1, itsms2)
+        self.assertGreater(itsms2, itsms1)
+        self.assertGreater(itsms1, ts2)
+        self.assertLess(ts2, itsms1)
+
+        itsus1 = iTSus("2022-12-07T00:00:00.000001Z")
+        itsus2 = iTSus("2022-12-07T00:00:00.000002Z")
+        self.assertNotEqual(itsus1, itsus2)
+        self.assertLess(itsus1, itsus2)
+        self.assertGreater(itsus2, itsus1)
+        self.assertEqual(itsus1, ts1)
+        self.assertNotEqual(itsus1, ts2)
+        self.assertLess(itsus1, ts2)
+        self.assertGreater(ts2, itsus1)
+        self.assertGreater(itsus2, ts1)
+        self.assertTrue(itsus1 < int(ts2.as_usec()))
+        self.assertTrue(int(ts2.as_usec()) > itsus1)
+        self.assertTrue(itsus1 < float(ts2.as_usec()))
+        self.assertTrue(float(ts2.as_usec()) > itsus1)
+
+        itsns0 = iTSns("2022-12-07T00:00:00.000000999Z")
+        itsns1 = iTSns("2022-12-07T00:00:00.000001001Z")
+        itsns2 = iTSns("2022-12-07T00:00:00.000001002Z")
+        self.assertNotEqual(itsns1, itsns2)
+        self.assertLess(itsns1, itsns2)
+        self.assertGreater(itsns2, itsns1)
+        self.assertGreater(itsns1, ts1)
+        self.assertLess(itsns0, ts1)
+        self.assertGreater(ts1, itsns0)
+        self.assertNotEqual(itsns1, itsus1)
+
+        self.assertTrue(itsns1 < int(ts2.as_nsec()))
+        self.assertTrue(int(ts2.as_nsec()) > itsns1)
+        i = int(ts1.as_nsec())
+        self.assertTrue(i < int(itsns1))
+        self.assertTrue(i != itsns1)
+        self.assertTrue(itsns1 != i)
+        self.assertTrue(i < itsns1)
+        self.assertTrue(itsns1 > int(ts1.as_nsec()))
+        self.assertTrue(int(ts1.as_nsec()) < itsns1)
+        self.assertTrue(itsns1 < float(ts2.as_nsec()))
+        self.assertTrue(float(ts2.as_nsec()) > itsns1)
+        self.assertTrue(itsns1 < ts2.as_nsec())
+        self.assertTrue(ts2.as_nsec() > itsns1)
+        self.assertTrue(itsns1 < ts2)
+        self.assertTrue(ts2 > itsns1)
+
 
 class Test_iTS(TestCase):
     def test_iTS_constructors(self):
@@ -966,6 +1031,12 @@ class Test_iTSus(TestCase):
         ts = iTSus(ts=1519855200000000.499)
         self.assertEqual(ts, 1519855200000000)
 
+    def test_regression_constructor(self):
+        with self.assertRaises(ValueError):
+            ts = iTSus("2025-06-08T30:00:00Z")
+        ts = iTSus("2025-06-08T23:00:00Z")
+        self.assertEqual(ts, TS("2025-06-08T23:00:00Z"))
+
     def test_from_iTS(self):
         ts = iTS(ts=1519855200)
         us = iTSus(ts)
@@ -1081,6 +1152,25 @@ class Test_iTSns(TestCase):
         its_ns_gran = int(iTSns("2022-12-07T10:00:00.123456789Z", utc=True))
         self.assertEqual(ts_ms_gran + 456000, its_us_gran)
         self.assertEqual(its_us_gran + 789, its_ns_gran)
+
+    def test_regression_constructor(self):
+        with self.assertRaises(ValueError):
+            iTSns("2025-06-08T30:00:00Z")
+        ts = iTSns("2025-06-08T23:00:00Z")
+        self.assertEqual(ts, TS("2025-06-08T23:00:00"))
+        # constructor from iTS
+        its1 = iTS("2025-06-08T23:00:00Z")
+        itsns1 = iTSns(its1)
+        self.assertEqual(itsns1, its1)
+
+        its_less_digits = iTSns("2025-06-08T23:00:00.123456Z")
+        self.assertEqual(int(its_less_digits) % 1_000_000_000, 123456000)
+
+        itsus1 = iTSus(its1)
+        self.assertEqual(itsus1, its1)
+
+        itsms1 = iTSms(its1)
+        self.assertEqual(itsms1, its1)
 
     def test_from_ns(self):
         # these big floats are not supported by python
