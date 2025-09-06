@@ -157,6 +157,7 @@ class dTS:
     def __radd__(self, other):
         return self.__add__(other)
 
+
 @total_ordering
 class BaseTS(ABC, metaclass=ABCMeta):
     @classmethod
@@ -347,21 +348,20 @@ class BaseTS(ABC, metaclass=ABCMeta):
 
     iso = isoformat
 
-    def iso_date(self) -> str:
+    def iso_date(self, sep="-", use_zulu: bool = False) -> str:
         """
         Returns Extended ISO date format.
         Example: 2021-01-01
         """
-        s = self.as_dt().strftime("%Y-%m-%d")
-        return s
+        zulu_designator = "Z" if use_zulu else ""
+        return self.as_dt().strftime(f"%Y{sep}%m{sep}%d{zulu_designator}")
 
-    def iso_date_basic(self) -> str:
+    def iso_date_basic(self, use_zulu: bool = False) -> str:
         """
         Returns Basic ISO date format.
         Example: 20210101
         """
-        s = self.as_dt().strftime("%Y%m%d")
-        return s
+        return self.iso_date(sep="", use_zulu=use_zulu)
 
     def iso_tz(self, tz: Union[str, tzinfo]) -> str:
         """
@@ -372,8 +372,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
             tz = pytz.timezone(tz)
         dt = self.as_dt(tz=tz)
         s = dt.isoformat()
-        s = s.replace("+00:00", "Z")
-        return s
+        return s.replace("+00:00", "Z")
 
     def iso_basic(self, sep="-", use_zulu: bool = False) -> str:
         """
@@ -382,8 +381,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
         """
         dt = self.as_dt()
         zulu_designator = "Z" if use_zulu else ""
-        s = dt.strftime(f"%Y%m%d{sep}%H%M%S{zulu_designator}")
-        return s
+        return dt.strftime(f"%Y%m%d{sep}%H%M%S{zulu_designator}")
 
     def as_sec(self) -> "iTS":
         """
@@ -693,7 +691,6 @@ class TS(BaseTS, float):
         return False
 
 
-
 class TSMsec(TS):
     def __new__(cls, ts: Union[int, float, str], prec: Literal["s", "ms"] = "ms"):
         if isinstance(ts, TS):
@@ -808,7 +805,7 @@ class iBaseTS(BaseTS, int):
         if isinstance(o, BaseTS):
             return int.__eq__(self.as_nsec(), o.as_nsec())
         if isinstance(o, Real):
-            return int.__eq__(int(self),o)
+            return int.__eq__(int(self), o)
         return False
 
     def __ne__(self, o: object) -> bool:
@@ -818,6 +815,7 @@ class iBaseTS(BaseTS, int):
         # Keep hash consistent with __eq__ which compares nanoseconds via as_nsec()
         nsec = self.as_nsec()
         return int.__hash__(nsec)
+
 
 class iTS(iBaseTS):
     """
