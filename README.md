@@ -4,7 +4,7 @@
 
 [![Build Status](https://github.com/asuiu/tsx/actions/workflows/python-package.yml/badge.svg?branch=main)](https://github.com/asuiu/tsx/actions/workflows/python-package.yml)
 
-###### Why tsx? 
+###### Why tsx?
 **tsx** was created as a response to the known Python datetime standard library flaw that violates ISO 8601. ( [Example](https://stackoverflow.com/questions/19654578/python-utc-datetime-objects-iso-format-doesnt-include-z-zulu-or-zero-offset) )
 
 It properly handles the Daylight Saving Time (summer time), and provides functionality for creating, manipulating, and formatting timestamps in various formats
@@ -14,21 +14,24 @@ Under the hood, it uses external dateparser library that's fully compatible with
 
 ### Installation
 
-`pip pinstall tsx`
+```bash
+pip install tsx
+```
 
 ### Usage:
+
+#### LLM targeted summary: https://github.com/asuiu/tsx/blob/master/LLM-README.md
 
 The library is pretty simple, its central class is `TS`, which inhertis Python builtin `float`,
 so every timestamp in fact is a float representing number of seconds since Epoch.
 
-The `TSMsec` is the same `TS` with only difference that it's constructor by default expects msec precision, i.e. number
-of msecs since epoch,
-but internally it will store the same float as number of seconds since Epoch.
+The `TSMsec` is the same `TS` with the only difference that its constructor by default expects millisecond precision, i.e. number
+of milliseconds since epoch, while internally it stores a float number of seconds since Epoch.
 
 ```python
-TS(ts: Union[int, float, str], prec: Literal["s", "ms"] = "s")`
+TS(ts: Union[int, float, str, datetime, date], prec: Literal["s", "ms", "us", "ns"] = "s")
 
-TSMsec(ts: Union[int, float, str], prec: Literal["s", "ms"] = "ms")
+TSMsec(ts: Union[int, float, str, datetime, date], prec: Literal["s", "ms"] = "ms")
 ```
 
 - `prec` - is precision of the `ts` argument.
@@ -77,7 +80,7 @@ The TS class, a subclass of float, represents Unix timestamps in seconds. It inc
 - `as_sec()`, `as_ms()`, `to_sec()`: Conversions to different precisions with deprecation notices.
 - `floor()` and `ceil()`: Methods for flooring and ceiling the timestamp.
 - `weekday()` and `isoweekday()`: Methods to get the day of the week.
-- *Arithmetic Operations*: Overloaded methods for arithmetic.
+- *Arithmetic Operations*: Overloaded methods for arithmetic, including support for datetime.timedelta and calendar deltas via dTS (months/years).
 
 #### now_dt
 
@@ -243,7 +246,7 @@ The TS class, a subclass of float, represents Unix timestamps in seconds. It inc
   ```python
   ts = TS(1634294413.123456)
   ts.floor(100) == TS(1634294400.0) == 1634294400.0
-  
+
   ts.floor(0.025) == TS(1634294413.1) == 1634294400.1
   ```
 
@@ -256,7 +259,7 @@ The TS class, a subclass of float, represents Unix timestamps in seconds. It inc
       ```python
       ts = TS(1634294413.123456)
       ts.ceil(100) == TS(1634294500.0) == 1634294500.0
-      
+
       ts.ceil(0.025) == TS(1634294413.125) == 1634294500.125
       ```
 
@@ -271,7 +274,10 @@ The TS class, a subclass of float, represents Unix timestamps in seconds. It inc
       ts.weekday() == 4
       ```
 
-#### isoweekday
+##### 0.2.1
+- Added datetime.timedelta arithmetic support for TS and all integer timestamp classes (iTS, iTSms, iTSus, iTSns). Integer classes round td to their unit with Python round().
+- Added comprehensive unit tests, including precision-aware verification.
+
 
 - **Description**: Return the day of the week as an integer, where Monday is 1 and Sunday is 7. See also weekday().
     - **Parameters**:
@@ -284,19 +290,18 @@ The TS class, a subclass of float, represents Unix timestamps in seconds. It inc
 
 #### Arithmetic Operations
 
-- **Description**: Overloaded methods for arithmetic.
+- **Description**: Overloaded methods for arithmetic including datetime.timedelta and dTS support.
     - **Parameters**:
-        - `other: Union[TS, int, float]`: The other timestamp to use.
-    - **Example**:
+        - `other: Union[int, float, datetime.timedelta, dTS]`
+    - **Examples**:
       ```python
+      from datetime import timedelta
+      from tsx.ts import dTS
+
       ts = TS(1634294400.123456)
-      ts + 100 == TS(1634294500.123456) == 1634294500.123456
-      ts - 100 == TS(1634294300.123456) == 1634294300.123456
-      ts * 100 == TS(163429440012.3456) == 163429440012.3456
-      ts / 100 == TS(16342944.00123456) == 16342944.00123456
-      ts // 100 == TS(16342944.0) == 16342944.0
-      ts % 100 == TS(1634294400.123456) == 1634294400.123456
-      ts ** 100 == TS(1634294400.123456) == 1634294400.123456
+      ts + 100                          # add seconds
+      ts + timedelta(milliseconds=250)  # add timedelta
+      ts + dTS("2M")                    # add 2 calendar months
       ```
 
 ### `TSMsec`
@@ -332,7 +337,7 @@ After instantiation, the TSMsec instance is identical to TS instance, and it inc
 - The iTSns class, a subclass of int, represents Unix timestamps in nanoseconds. It includes additional methods for timestamp manipulation and formatting.
 - It inherits from `BaseTS` and `int` classes, so it exposes all the methods `TS` has, as well as it supports all the arithmetic operations `int` supports.
 - It's identical to `TS` class, but all the methods that are expected to return `TS` will return `iTSns` instead, excepting the timestamp(), which returns `TS`.
-- **Note**: The `iTSns` class is only available for Python >= 3.8, and it support ns level now precision by using `time.time_ns()` instead of `time.time()`.
+- **Note**: `iTSns` supports nanosecond values for storage/formatting/arithmetics (timedelta limited to microsecond resolution). ISO formatting prints nanoseconds and appends `Z`.
 
 ### Changelog
 
@@ -345,7 +350,7 @@ After instantiation, the TSMsec instance is identical to TS instance, and it inc
 
 ##### 0.1.15
 - TS.as_dt() now is able to properly handle the big dates (year > 2038), which are causing overflow exceptions in Python datetime.fromtimestamp() stdlib functions
-- Added instantiation from Python datetime and date objects + proper handling of big dates (year > 2038) 
+- Added instantiation from Python datetime and date objects + proper handling of big dates (year > 2038)
 
 ##### 0.1.14
 - TS.now() offers nanosecond precision instead of millisecond

@@ -12,14 +12,15 @@ import sys
 import warnings
 from abc import ABC, abstractmethod, ABCMeta
 from datetime import datetime, timezone, tzinfo, timedelta, date, time
+from functools import total_ordering
 from numbers import Integral, Real, Number
 from time import time_ns
 from typing import Union, Optional, Tuple
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+try:
+    from typing import Self, Literal, override
+except ImportError:
+    from typing_extensions import Literal, Self, override
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -162,6 +163,7 @@ class dTS:
         return self.__add__(other)
 
 
+@total_ordering
 class BaseTS(ABC, metaclass=ABCMeta):
     @classmethod
     def __get_validators__(cls):
@@ -195,6 +197,15 @@ class BaseTS(ABC, metaclass=ABCMeta):
             raise TypeError(f"{repr(value)} of class {type(value)} CAN'T be converted to {cls}")
 
         return pydantic_general_plain_validator_function(validate_and_convert)
+
+    @classmethod
+    def from_parts_utc(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0) -> Self:
+        dt = datetime(y, m, d, hh, mm, ss, ms * 1000 + us, tzinfo=timezone.utc)
+        if ns != 0:
+            f = dt.timestamp()
+            f += ns / 1e9
+            return cls(f)
+        return cls(dt)
 
     @classmethod
     def timestamp_from_iso(cls, ts: str, utc: bool = True) -> float:
@@ -353,21 +364,20 @@ class BaseTS(ABC, metaclass=ABCMeta):
 
     iso = isoformat
 
-    def iso_date(self) -> str:
+    def iso_date(self, sep="-", use_zulu: bool = False) -> str:
         """
         Returns Extended ISO date format.
         Example: 2021-01-01
         """
-        s = self.as_dt().strftime("%Y-%m-%d")
-        return s
+        zulu_designator = "Z" if use_zulu else ""
+        return self.as_dt().strftime(f"%Y{sep}%m{sep}%d{zulu_designator}")
 
-    def iso_date_basic(self) -> str:
+    def iso_date_basic(self, use_zulu: bool = False) -> str:
         """
         Returns Basic ISO date format.
         Example: 20210101
         """
-        s = self.as_dt().strftime("%Y%m%d")
-        return s
+        return self.iso_date(sep="", use_zulu=use_zulu)
 
     def iso_tz(self, tz: Union[str, tzinfo]) -> str:
         """
@@ -378,8 +388,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
             tz = pytz.timezone(tz)
         dt = self.as_dt(tz=tz)
         s = dt.isoformat()
-        s = s.replace("+00:00", "Z")
-        return s
+        return s.replace("+00:00", "Z")
 
     def iso_basic(self, sep="-", use_zulu: bool = False) -> str:
         """
@@ -388,8 +397,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
         """
         dt = self.as_dt()
         zulu_designator = "Z" if use_zulu else ""
-        s = dt.strftime(f"%Y%m%d{sep}%H%M%S{zulu_designator}")
-        return s
+        return dt.strftime(f"%Y%m%d{sep}%H%M%S{zulu_designator}")
 
     def as_sec(self) -> "iTS":
         """
@@ -412,12 +420,13 @@ class BaseTS(ABC, metaclass=ABCMeta):
         """
         return iTSus(round(self.timestamp() * 1_000_000))
 
+    @abstractmethod
     def as_nsec(self) -> "iTSns":
         """
         Converts to iTSns (integer timestamp in nanoseconds)
         Note: it will round the timestamp to nanoseconds
         """
-        return iTSns(round(self.timestamp() * 1_000_000_000))
+        raise NotImplementedError()
 
     @abstractmethod
     def floor(self, unit: Union[int, float]) -> "BaseTS":
@@ -465,6 +474,30 @@ class BaseTS(ABC, metaclass=ABCMeta):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.isoformat()!r})"
+
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            # we assume microsecond precision for TS since the float doesn't have enough precision for more
+            return int.__eq__(self.as_nsec(), o.as_nsec())
+        if isinstance(o, Number):
+            return abs(float(self) - o) < 1e-6
+        return False
+
+    def __ne__(self, o: object) -> bool:
+        return not self.__eq__(o)
+
+    def __lt__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            return int.__lt__(self.as_nsec(), o.as_nsec())
+        return False
+
+    def __hash__(self) -> int:
+        """
+        We compute the seconds and nanoseconds as separate ints, make their sum and hash over this sum,
+        in this way we avoid the hash collisions for the same timestamp with different precisions
+        """
+        nsec = self.as_nsec()
+        return int.__hash__(nsec)
 
 
 class TS(BaseTS, float):
@@ -580,6 +613,13 @@ class TS(BaseTS, float):
         warnings.warn(f"Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
         return iTS(self)
 
+    @override
+    def as_nsec(self) -> "iTSns":
+        """
+        We limit the TS precision to usec, since float doesn't have enough precision for nanoseconds
+        """
+        return iTSns(self.as_usec() * 1_000)
+
     def to_sec(self) -> "iTS":
         """
         Represents Unix timestamp in seconds since Epoch
@@ -641,21 +681,36 @@ class TS(BaseTS, float):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.isoformat()!r})"
 
-    def __add__(self, x: Union[float, dTS]) -> "TS":
+    def __add__(self, x: Union[float, dTS, timedelta]) -> "TS":
         if isinstance(x, dTS):
             return TS(x._add(self.as_nsec()), prec="ns")
+        if isinstance(x, timedelta):
+            return TS(float(self) + x.total_seconds())
         return TS(float.__add__(self, x))
 
     def __radd__(self, other) -> "TS":
+        if isinstance(other, timedelta):
+            return TS(float(self) + other.total_seconds())
         return self.__add__(other)
 
-    def __sub__(self, x: float) -> "TS":
+    def __sub__(self, x: Union[float, dTS, timedelta]) -> "TS":
         if isinstance(x, dTS):
             return TS(x._sub(self.as_nsec()), prec='ns')
+        if isinstance(x, timedelta):
+            return TS(float(self) - x.total_seconds())
         return TS(float.__sub__(self, x))
 
-    def __rsub__(self, x: float) -> "TS":
+    def __rsub__(self, x) -> "TS":
+        if isinstance(x, timedelta):
+            return TS(x.total_seconds() - float(self))
         return TS(float.__rsub__(self, x))
+
+    def __lt__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            return int.__lt__(self.as_nsec(), o.as_nsec())
+        if isinstance(o, Number):
+            return float.__lt__(self, float(o))
+        return False
 
 
 class TSMsec(TS):
@@ -664,20 +719,39 @@ class TSMsec(TS):
             return ts
         return super().__new__(TS, ts, prec)
 
+    @classmethod
+    def from_parts_utc(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0) -> Self:
+        dt = datetime(y, m, d, hh, mm, ss, ms * 1000 + us, tzinfo=timezone.utc)
+        return cls(dt)
+
 
 class iBaseTS(BaseTS, int):
-    UNITS_IN_SEC: int = None
-    PREC_STR: str = None
+    UNITS_IN_SEC: int
+    UNITS_IN_MS: int
+    UNITS_IN_US: int
+    UNITS_IN_NS: int
+    NANOS_PER_UNIT: int
+
+    PREC_STR: str
+
+    @override
+    @classmethod
+    def from_parts_utc(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0) -> Self:
+        dt = datetime(y, m, d, hh, mm, ss, tzinfo=timezone.utc)
+        i = round(dt.timestamp()) * cls.UNITS_IN_SEC
+
+        i += (ms * cls.UNITS_IN_MS) + (us * cls.UNITS_IN_US) + ns * cls.UNITS_IN_NS
+        return cls(i)
 
     @classmethod
-    def now(cls) -> "iBaseTS":
+    def now(cls) -> Self:
         tns = time_ns()
         precision = 1_000_000_000 // cls.UNITS_IN_SEC
         rounded_val = round(tns / precision)
         return cls(rounded_val)
 
     @classmethod
-    def from_iso(cls, ts: str, utc: bool = True) -> "iBaseTS":
+    def from_iso(cls, ts: str, utc: bool = True) -> Self:
         """
         Attention: if timestamp has TZ info, it will ignore the utc parameter
         This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
@@ -689,7 +763,7 @@ class iBaseTS(BaseTS, int):
     def timestamp(self) -> "TS":
         return TS(self, prec=self.PREC_STR)
 
-    def floor(self, unit: int) -> "iBaseTS":
+    def floor(self, unit: int) -> Self:
         """
         Returns the timestamp floored to the specified unit.
 
@@ -699,7 +773,7 @@ class iBaseTS(BaseTS, int):
         floored_int = (self // unit) * unit
         return type(self)(floored_int)
 
-    def ceil(self, unit: int) -> "iBaseTS":
+    def ceil(self, unit: int) -> Self:
         """
         Returns the timestamp ceiled to the specified unit
         :param unit: the unit to ceil in seconds
@@ -709,22 +783,60 @@ class iBaseTS(BaseTS, int):
         # ceiled_int = math.ceil(self / unit) * unit
         return type(self)(ceiled_int)
 
+    @override
+    def as_nsec(self) -> "iTSns":
+        return iTSns(self * self.NANOS_PER_UNIT)
+
     def __int__(self) -> int:
         return round(self)
 
-    def __add__(self, x: Number) -> "BaseTS":
+    def __add__(self, x: Union[Number, timedelta]) -> Self:
+        if isinstance(x, timedelta):
+            delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
+            return type(self)(int(self) + delta_units)
         return type(self)(int(self) + x)
 
-    def __radd__(self, x: Number):
+    def __radd__(self, x: Union[Number, timedelta]) -> Self:
+        if isinstance(x, timedelta):
+            delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
+            return type(self)(delta_units + int(self))
         return type(self)(x + int(self))
 
-    def __sub__(self, x: Number) -> "BaseTS":
+    def __sub__(self, x: Union[Number, timedelta]) -> Self:
+        if isinstance(x, timedelta):
+            delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
+            return type(self)(int(self) - delta_units)
         d = int(self) - x
         return type(self)(d)
 
-    def __rsub__(self, x: Number) -> "BaseTS":
+    def __rsub__(self, x: Union[Number, timedelta]) -> Self:
+        if isinstance(x, timedelta):
+            delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
+            return type(self)(delta_units - int(self))
         d = x - int(self)
         return type(self)(d)
+
+    def __lt__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            return int.__lt__(self.as_nsec(), o.as_nsec())
+        if isinstance(o, Real):
+            return int(self) < o
+        return False
+
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, BaseTS):
+            return int.__eq__(self.as_nsec(), o.as_nsec())
+        if isinstance(o, Real):
+            return int.__eq__(int(self), o)
+        return False
+
+    def __ne__(self, o: object) -> bool:
+        return not self.__eq__(o)
+
+    def __hash__(self) -> int:
+        # Keep hash consistent with __eq__ which compares nanoseconds via as_nsec()
+        nsec = self.as_nsec()
+        return int.__hash__(nsec)
 
 
 class iTS(iBaseTS):
@@ -734,6 +846,11 @@ class iTS(iBaseTS):
     This class is a subclass of int, so it can be used as an int, but it also has some extra methods.
     """
     UNITS_IN_SEC: int = 1
+    UNITS_IN_MS = UNITS_IN_SEC // 1_000
+    UNITS_IN_US = UNITS_IN_SEC // 1_000_000
+    UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+    NANOS_PER_UNIT = 1_000_000_000 // UNITS_IN_SEC
+
     PREC_STR: str = "s"
 
     def __new__(cls, ts: Union[int, float, str], utc: bool = True):
@@ -764,11 +881,16 @@ class iTSms(iBaseTS):
     """
 
     UNITS_IN_SEC: int = 1_000
+    UNITS_IN_MS = UNITS_IN_SEC // 1_000
+    UNITS_IN_US = UNITS_IN_SEC // 1_000_000
+    UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+    NANOS_PER_UNIT = 1_000_000_000 // UNITS_IN_SEC
+
     PREC_STR: str = "ms"
 
     def __new__(cls, ts: Union[int, float, str], utc: bool = True):
         if isinstance(ts, iTS):
-            return iTSus(ts * 1_000)
+            return int.__new__(cls, ts * 1_000)
         if isinstance(ts, iTSms):
             return ts
         if isinstance(ts, iTSus):
@@ -793,11 +915,16 @@ class iTSus(iBaseTS):
     This class is a subclass of int, so it can be used as an int, but it also has some extra methods.
     """
     UNITS_IN_SEC = 1_000_000
+    UNITS_IN_MS = UNITS_IN_SEC // 1_000
+    UNITS_IN_US = UNITS_IN_SEC // 1_000_000
+    UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+    NANOS_PER_UNIT = 1_000_000_000 // UNITS_IN_SEC
+
     PREC_STR = "us"
 
     def __new__(cls, ts: Union[int, float, str], utc: bool = True):
         if isinstance(ts, iTS):
-            return iTSus(ts * 1_000_000)
+            return int.__new__(cls, ts * 1_000_000)
         if isinstance(ts, iTSms):
             return int.__new__(cls, ts * 1_000)
         if isinstance(ts, iTSus):
@@ -827,12 +954,17 @@ class iTSns(iBaseTS):
     """
 
     UNITS_IN_SEC = 1_000_000_000
+    UNITS_IN_MS = UNITS_IN_SEC // 1_000
+    UNITS_IN_US = UNITS_IN_SEC // 1_000_000
+    UNITS_IN_NS = UNITS_IN_SEC // 1_000_000_000
+    NANOS_PER_UNIT = 1_000_000_000 // UNITS_IN_SEC
+
     PREC_STR = "ns"
     RE_NS_ISO = re.compile(r".+\d\.\d{7,9}([^0-9].*)?$")
 
     def __new__(cls, ts: Union[int, str], utc: bool = True):
         if isinstance(ts, iTS):
-            return iTSus(ts * 1_000_000_000)
+            return int.__new__(cls, ts * 1_000_000_000)
         if isinstance(ts, iTSms):
             return int.__new__(cls, ts * 1_000_000)
         if isinstance(ts, iTSus):
@@ -840,8 +972,7 @@ class iTSns(iBaseTS):
         if isinstance(ts, iTSns):
             return ts
         if isinstance(ts, TS):
-            int_val = round(ts.timestamp() * cls.UNITS_IN_SEC)
-            return int.__new__(cls, int_val)
+            return ts.as_nsec()
         if isinstance(ts, Integral):
             return int.__new__(cls, ts)
         if isinstance(ts, str):
@@ -854,7 +985,7 @@ class iTSns(iBaseTS):
         return int.__new__(cls, int_val)
 
     @classmethod
-    def now(cls) -> "iBaseTS":
+    def now(cls) -> Self:
         tns = time_ns()
         return cls(tns)
 

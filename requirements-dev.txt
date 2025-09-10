@@ -3,4 +3,5 @@
 numpy
 pre-commit
 pydantic==2.11.7
+setuptools
 twine
