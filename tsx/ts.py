@@ -22,11 +22,6 @@ try:
 except ImportError:
     from typing_extensions import Literal, Self, override
 
-if sys.version_info >= (3, 12):
-    from typing import override
-else:
-    from typing_extensions import override
-
 try:
     from pydantic_core.core_schema import (general_plain_validator_function as pydantic_general_plain_validator_function)
 except ImportError:
