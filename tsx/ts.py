@@ -316,8 +316,8 @@ class BaseTS(ABC, metaclass=ABCMeta):
             days = ts // SECONDS_PER_DAY
             years = int(days / AVG_DAYS_PER_YEAR)  # Average considering leap years
             year = 1970 + years
-            year_date = datetime(year, 1, 1)
-            td_to_year_beginning = year_date - datetime(1970, 1, 1)
+            year_date = datetime(year, 1, 1, tzinfo=tz)
+            td_to_year_beginning = year_date - datetime(1970, 1, 1, tzinfo=tz)
             year_remaining_sec = ts - td_to_year_beginning.total_seconds()
             td = timedelta(seconds=year_remaining_sec)
             res = year_date + td

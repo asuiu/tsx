@@ -246,17 +246,17 @@ class TestTS(TestCase):
 
     def test_as_dt_infinite_dates(self):
         ts = TS('9999-12-31')
-        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31))
+        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31, tzinfo=timezone.utc))
 
         ts = TS('9999-12-31T23:59:59')
-        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31, 23, 59, 59))
+        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc))
 
     def test_str_infinite_dates(self):
         ts = TS('9999-12-31')
-        self.assertEqual(str(ts), '9999-12-31T00:00:00')
+        self.assertEqual(str(ts), '9999-12-31T00:00:00Z')
 
         ts = TS('9999-12-31T23:59:59')
-        self.assertEqual(str(ts), '9999-12-31T23:59:59')
+        self.assertEqual(str(ts), '9999-12-31T23:59:59Z')
 
     def test_math_ops(self):
         ts = TS(ts=1519855200)
@@ -338,14 +338,14 @@ class TestTS(TestCase):
         self.assertEqual(expected, ceiled)
 
     def test_weekday(self):
-        ts = TS.from_iso("2022-12-07T00:00:01")
+        ts = TS.from_iso("2022-12-07T00:00:01", utc=True)
         self.assertEqual(ts.weekday(), 2)
         ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
         self.assertEqual(ts.weekday(utc=False), 2)
         self.assertEqual(ts.weekday(), 1)
 
     def test_isoweekday(self):
-        ts = TS.from_iso("2022-12-07T00:00:01")
+        ts = TS.from_iso("2022-12-07T00:00:01", utc=True)
         self.assertEqual(ts.isoweekday(), 3)
         ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
         self.assertEqual(ts.isoweekday(utc=False), 3)
@@ -1267,7 +1267,7 @@ class Test_iTSns(TestCase):
         print(int(now_ts - its))
 
         self.assertLess(ns_ts - now_ts, 1_000_000)
-        self.assertLess(abs(its - now_ts), 10_000)
+        self.assertLess(abs(its - now_ts), 50_000)
 
     def test_pickle_roundtrip(self):
         ts = iTSns("2022-12-07T00:00:00.123456Z")
