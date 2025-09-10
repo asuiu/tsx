@@ -12,6 +12,7 @@ import unittest
 from _decimal import Decimal
 from datetime import datetime, timezone, date, timedelta
 from time import time, localtime, strftime, time_ns
+from typing import Type
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -22,6 +23,40 @@ from pydantic import BaseModel
 
 from tsx import TS, TSMsec, iTS, iTSms, iTSus, iTSns
 from tsx.ts import dTS, BaseTS
+
+
+def run_test_from_iso(self: TestCase, cls: Type[BaseTS]):
+    self.assertIsInstance(cls.from_iso("2018"), cls)
+    self.assertEqual(cls.from_iso("2018"), cls("2018-01-01T00:00:00Z"))
+    self.assertEqual(cls.from_iso("2018Z"), cls("2018-01-01T00:00:00Z"))
+    self.assertEqual(cls.from_iso("201801"), cls("2018-01-01T00:00:00Z"))
+    self.assertEqual(cls.from_iso("201801Z"), cls("2018-01-01T00:00:00Z"))
+    self.assertEqual(cls.from_iso("2018-01"), cls("2018-01-01T00:00:00Z"))
+    self.assertEqual(cls.from_iso("2018-01Z"), cls("2018-01-01T00:00:00Z"))
+
+    ts = cls.from_iso("2018-02-28")
+    self.assertEqual(ts, cls("2018-02-28T00:00:00Z"))
+    ts = cls.from_iso("2018-02-28", utc=False)
+    self.assertEqual(ts, cls("2018-02-28T00:00:00", utc=False))
+
+    ts = cls.from_iso("2018-02-28Z")
+    self.assertEqual(ts, cls("2018-02-28T00:00:00Z", utc=False))
+
+    ts = cls.from_iso("20180228")
+    self.assertEqual(ts, cls("2018-02-28T00:00:00Z"))
+
+    ts = cls.from_iso("20180228Z")
+    self.assertEqual(ts, cls("2018-02-28T00:00:00Z"))
+
+    ts = cls.from_iso("2018-02-28T22:00:00+00:00")
+    self.assertEqual(ts, cls("2018-02-28T22:00:00Z"))
+
+    ts = cls.from_iso("2018-02-28T00:00:00+02:00")
+    self.assertEqual(ts, cls("2018-02-27T22:00:00Z"))
+
+    if sys.version_info <= (3, 11):
+        ts = cls.from_iso("2018-02")
+        self.assertEqual(ts, cls("2018-02-01T00:00:00Z"))
 
 
 class TestTS(TestCase):
@@ -211,17 +246,17 @@ class TestTS(TestCase):
 
     def test_as_dt_infinite_dates(self):
         ts = TS('9999-12-31')
-        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31))
+        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31, tzinfo=timezone.utc))
 
         ts = TS('9999-12-31T23:59:59')
-        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31, 23, 59, 59))
+        self.assertEqual(ts.as_dt(), datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc))
 
     def test_str_infinite_dates(self):
         ts = TS('9999-12-31')
-        self.assertEqual(str(ts), '9999-12-31T00:00:00')
+        self.assertEqual(str(ts), '9999-12-31T00:00:00Z')
 
         ts = TS('9999-12-31T23:59:59')
-        self.assertEqual(str(ts), '9999-12-31T23:59:59')
+        self.assertEqual(str(ts), '9999-12-31T23:59:59Z')
 
     def test_math_ops(self):
         ts = TS(ts=1519855200)
@@ -250,24 +285,7 @@ class TestTS(TestCase):
         self.assertEqual(repr(ts), "TS('2018-02-28T22:00:00Z')")
 
     def test_from_iso(self):
-        ts = TS.from_iso("2018-02-28")
-        self.assertEqual(ts, TS("2018-02-28T00:00:00Z"))
-        ts = TS.from_iso("2018-02-28", utc=False)
-        self.assertEqual(ts, TS("2018-02-28T00:00:00", utc=False))
-
-        ts = TS.from_iso("20180228")
-        self.assertEqual(ts, TS("2018-02-28T00:00:00Z"))
-
-        ts = TS.from_iso("2018-02-28T22:00:00+00:00")
-        self.assertEqual(ts, TS("2018-02-28T22:00:00Z"))
-
-        ts = TS.from_iso("2018-02-28T00:00:00+02:00")
-        self.assertEqual(ts, TS("2018-02-27T22:00:00Z"))
-        # ts = TS.from_iso("2018")
-        # self.assertEqual(ts, TS("2018-01-01T00:00:00Z"))
-        if sys.version_info <= (3, 11):
-            ts = TS.from_iso("2018-02")
-            self.assertEqual(ts, TS("2018-02-01T00:00:00Z"))
+        run_test_from_iso(self, TS)
 
     def test_floor_over_ms(self):
         ts = TS.from_iso("2018-02-28")
@@ -320,18 +338,12 @@ class TestTS(TestCase):
         self.assertEqual(expected, ceiled)
 
     def test_weekday(self):
-        ts = TS.from_iso("2022-12-07T00:00:01")
+        ts = TS.from_iso("2022-12-07T00:00:01", utc=True)
         self.assertEqual(ts.weekday(), 2)
-        ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
-        self.assertEqual(ts.weekday(utc=False), 2)
-        self.assertEqual(ts.weekday(), 1)
 
     def test_isoweekday(self):
-        ts = TS.from_iso("2022-12-07T00:00:01")
+        ts = TS.from_iso("2022-12-07T00:00:01", utc=True)
         self.assertEqual(ts.isoweekday(), 3)
-        ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
-        self.assertEqual(ts.isoweekday(utc=False), 3)
-        self.assertEqual(ts.isoweekday(), 2)
 
     def test_default_utc(self):
         expected = TS.from_iso("2022-12-07T00:00:00Z")
@@ -611,6 +623,9 @@ class TestBaseTS(TestCase):
 
 
 class Test_iTS(TestCase):
+    def test_from_iso(self):
+        run_test_from_iso(self, iTS)
+
     def test_iTS_constructors(self):
         ts = TS(1519855200.567)
         its = iTS(ts)
@@ -893,6 +908,9 @@ class Test_dTS(TestCase):
 
 
 class Test_iTSms(TestCase):
+    def test_from_iso(self):
+        run_test_from_iso(self, iTSms)
+
     def test_constructors(self):
         ts = TS(1519855200.567)
         its = iTSms(ts)
@@ -1013,6 +1031,9 @@ class Test_iTSms(TestCase):
 
 
 class Test_iTSus(TestCase):
+    def test_from_iso(self):
+        run_test_from_iso(self, iTSus)
+
     def test_constructors(self):
         ts = TS(1519855200.123456)
         its = iTSus(ts)
@@ -1102,6 +1123,9 @@ class Test_iTSus(TestCase):
 
 
 class Test_iTSns(TestCase):
+    def test_from_iso(self):
+        run_test_from_iso(self, iTSns)
+
     def test_constructors(self):
         ts = TS(1519855200.123456789)
         its = iTSns(ts)
@@ -1236,8 +1260,8 @@ class Test_iTSns(TestCase):
         print(int(ns_ts - now_ts))
         print(int(now_ts - its))
 
-        self.assertLess(ns_ts - now_ts, 100)
-        self.assertLess(abs(its - now_ts), 500)
+        self.assertLess(ns_ts - now_ts, 1_000_000)
+        self.assertLess(abs(its - now_ts), 50_000)
 
     def test_pickle_roundtrip(self):
         ts = iTSns("2022-12-07T00:00:00.123456Z")

@@ -209,7 +209,18 @@ class BaseTS(ABC, metaclass=ABCMeta):
         This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
         It will allow any of ISO-8601 formats, but will not allow any other formats
         """
-        dt = DEFAULT_ISO_PARSER(ts)
+        try:
+            dt = DEFAULT_ISO_PARSER(ts)
+        except ValueError:
+            if ts.endswith('Z'):
+                ts = ts[:-1]
+                utc = True
+            ts = ts.replace("-", "")
+            if len(ts) == 6:
+                ts += "01"
+            elif len(ts) == 4:
+                ts += "0101"
+            dt = DEFAULT_ISO_PARSER(ts)
         if utc and dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         float_val = dt.timestamp()
@@ -305,8 +316,8 @@ class BaseTS(ABC, metaclass=ABCMeta):
             days = ts // SECONDS_PER_DAY
             years = int(days / AVG_DAYS_PER_YEAR)  # Average considering leap years
             year = 1970 + years
-            year_date = datetime(year, 1, 1)
-            td_to_year_beginning = year_date - datetime(1970, 1, 1)
+            year_date = datetime(year, 1, 1, tzinfo=tz)
+            td_to_year_beginning = year_date - datetime(1970, 1, 1, tzinfo=tz)
             year_remaining_sec = ts - td_to_year_beginning.total_seconds()
             td = timedelta(seconds=year_remaining_sec)
             res = year_date + td
@@ -439,6 +450,11 @@ class BaseTS(ABC, metaclass=ABCMeta):
             dt = self.as_local_dt()
             return dt.weekday()
 
+    @classmethod
+    @abstractmethod
+    def from_iso(cls, ts: str, utc: bool = True) -> "TS":
+        raise NotImplementedError()
+
     def isoweekday(self, utc: bool = True) -> int:
         """
         Return the day of the week as an integer, where Monday is 1 and Sunday is 7. See also weekday().
@@ -508,6 +524,7 @@ class TS(BaseTS, float):
         return cls(cls.now_ns() / 1e9)
 
     @classmethod
+    @override
     def from_iso(cls, ts: str, utc: bool = True) -> "TS":
         """
         Attention: if timestamp has TZ info, it will ignore the utc parameter

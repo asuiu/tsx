@@ -1,5 +1,7 @@
 -r requirements.txt
 
 numpy
+pre-commit
+pydantic>=2,<3
+setuptools
 twine
-pydantic==2.0.3

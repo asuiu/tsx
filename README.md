@@ -20,7 +20,7 @@ pip install tsx
 
 ### Usage:
 
-#### LLM targeted summary: https://github.com/asuiu/tsx/blob/master/LLM-README.md 
+#### LLM targeted summary: https://github.com/asuiu/tsx/blob/master/LLM-README.md
 
 The library is pretty simple, its central class is `TS`, which inhertis Python builtin `float`,
 so every timestamp in fact is a float representing number of seconds since Epoch.
