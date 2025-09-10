@@ -21,14 +21,19 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
+
 try:
-    from pydantic_core.core_schema import ( general_plain_validator_function as pydantic_general_plain_validator_function)
+    from pydantic_core.core_schema import (general_plain_validator_function as pydantic_general_plain_validator_function)
 except ImportError:
     def __func_raising(*args, **kwargs):
         raise ImportError("pydantic V2 is not installed")
 
-    pydantic_general_plain_validator_function = __func_raising
 
+    pydantic_general_plain_validator_function = __func_raising
 
 import ciso8601
 import numpy as np
@@ -198,7 +203,18 @@ class BaseTS(ABC, metaclass=ABCMeta):
         This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
         It will allow any of ISO-8601 formats, but will not allow any other formats
         """
-        dt = DEFAULT_ISO_PARSER(ts)
+        try:
+            dt = DEFAULT_ISO_PARSER(ts)
+        except ValueError:
+            if ts.endswith('Z'):
+                ts = ts[:-1]
+                utc = True
+            ts = ts.replace("-", "")
+            if len(ts) == 6:
+                ts += "01"
+            elif len(ts) == 4:
+                ts += "0101"
+            dt = DEFAULT_ISO_PARSER(ts)
         if utc and dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         float_val = dt.timestamp()
@@ -365,7 +381,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
         s = s.replace("+00:00", "Z")
         return s
 
-    def iso_basic(self, sep="-", use_zulu:bool=False) -> str:
+    def iso_basic(self, sep="-", use_zulu: bool = False) -> str:
         """
         Returns Basic ISO date format.
         Example: 20210101-000000
@@ -430,6 +446,11 @@ class BaseTS(ABC, metaclass=ABCMeta):
             dt = self.as_local_dt()
             return dt.weekday()
 
+    @classmethod
+    @abstractmethod
+    def from_iso(cls, ts: str, utc: bool = True) -> "TS":
+        raise NotImplementedError()
+
     def isoweekday(self, utc: bool = True) -> int:
         """
         Return the day of the week as an integer, where Monday is 1 and Sunday is 7. See also weekday().
@@ -475,6 +496,7 @@ class TS(BaseTS, float):
         return cls(cls.now_ns() / 1e9)
 
     @classmethod
+    @override
     def from_iso(cls, ts: str, utc: bool = True) -> "TS":
         """
         Attention: if timestamp has TZ info, it will ignore the utc parameter
