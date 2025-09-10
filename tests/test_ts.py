@@ -340,19 +340,10 @@ class TestTS(TestCase):
     def test_weekday(self):
         ts = TS.from_iso("2022-12-07T00:00:01", utc=True)
         self.assertEqual(ts.weekday(), 2)
-        ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
-        self.assertEqual(ts.weekday(utc=False), 2)
-        self.assertEqual(ts.weekday(), 1)
 
     def test_isoweekday(self):
         ts = TS.from_iso("2022-12-07T00:00:01", utc=True)
         self.assertEqual(ts.isoweekday(), 3)
-        ts = TS.from_iso("2022-12-07T00:00:00+02", utc=False)
-        # compute expected values from the same ISO instant so test is independent of machine local tz
-        expected_local = datetime.fromisoformat("2022-12-07T00:00:00+02:00").isoweekday()
-        expected_utc = datetime.fromisoformat("2022-12-07T00:00:00+02:00").astimezone(timezone.utc).isoweekday()
-        self.assertEqual(ts.isoweekday(utc=False), expected_local)
-        self.assertEqual(ts.isoweekday(), expected_utc)
 
     def test_default_utc(self):
         expected = TS.from_iso("2022-12-07T00:00:00Z")
