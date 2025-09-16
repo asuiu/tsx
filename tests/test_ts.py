@@ -66,7 +66,7 @@ class TestTS(TestCase):
     FLOAT_MS_TS = 1519855200.123856
     STR_SEC_TS = "2018-02-28T22:00:00Z"
     AS_FILE_SEC_TS = "20180228-220000"
-    STR_MSEC_TS = "2018-02-28T22:00:00.123000Z"
+    STR_MSEC_TS = "2018-02-28T22:00:00.123Z"
 
     def _get_tz_delta(self, dt: datetime) -> float:
         return tz.tzlocal().utcoffset(dt).total_seconds()
@@ -212,7 +212,7 @@ class TestTS(TestCase):
 
     def test_as_str_ms(self):
         ts = TS(ts=self.INT_BASE_MS_TS, prec="ms")
-        self.assertEqual(ts.as_iso, self.STR_MSEC_TS)
+        self.assertEqual("2018-02-28T22:00:00.123000Z", ts.as_iso)
 
     def test_convert_from_str(self):
         ts = TS(ts="2018-02-28T22:00:00Z")
@@ -623,6 +623,15 @@ class TestBaseTS(TestCase):
 
 
 class Test_iTS(TestCase):
+    def test_itsms_formatting(self):
+        ts_str = "2025-09-08T02:17:29.981Z"
+        parsed = iTSms(ts_str)
+        self.assertEqual(1757297849981, int(parsed))
+
+        as_iso = parsed.isoformat()
+        self.assertEqual(ts_str, as_iso)
+        self.assertEqual(ts_str, str(parsed))  # useless since it's calling .isoformat()
+
     def test_from_iso(self):
         run_test_from_iso(self, iTS)
 
@@ -712,14 +721,14 @@ class Test_iTS(TestCase):
     def test_as_iso_tz_standard(self):
         ts = iTS("2018-03-01T00:00:00Z")
         res = ts.iso_tz(pytz.timezone("Europe/Bucharest"))
-        self.assertEqual(res, "2018-03-01T02:00:00+02:00")
+        self.assertEqual("2018-03-01T02:00:00+02:00", res)
         res = ts.iso_tz("Europe/Bucharest")
         self.assertEqual(res, "2018-03-01T02:00:00+02:00")
 
     def test_as_iso_tz_DST(self):
         ts = iTS("2020-06-01T10:00:00Z")
         res = ts.iso_tz(pytz.timezone("Europe/Bucharest"))
-        self.assertEqual(res, "2020-06-01T13:00:00+03:00")
+        self.assertEqual("2020-06-01T13:00:00+03:00", res)
 
     def test_default_utc(self):
         expected = iTS.from_iso("2022-12-07T00:00:00Z")
@@ -975,11 +984,11 @@ class Test_iTSms(TestCase):
 
     def test_repr(self):
         ts = iTSms(ts=TestTS.INT_BASE_MS_TS)
-        self.assertEqual(repr(ts), "iTSms('2018-02-28T22:00:00.123000Z')")
+        self.assertEqual("iTSms('2018-02-28T22:00:00.123Z')", repr(ts))
 
     def test_str(self):
         ts = iTSms(ts=TestTS.INT_BASE_MS_TS)
-        self.assertEqual(str(ts), TestTS.STR_MSEC_TS)
+        self.assertEqual(TestTS.STR_MSEC_TS, str(ts))
 
     def test_pydantic_validator(self):
         class TestModel(BaseModel):
@@ -1033,6 +1042,20 @@ class Test_iTSms(TestCase):
 class Test_iTSus(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSus)
+
+    def test_itsus_ms_regression(self):
+        """ ensures that when the ts has ms precision, we don't add float imprecision/add extra digits when converting to ns """
+        its_us = iTSus("2025-09-08T02:17:29.981", utc=False)
+        dt = datetime.fromisoformat("2025-09-08T02:17:29.981")
+        self.assertEqual(dt.timestamp(), its_us.timestamp())
+
+        its_us = iTSus("2025-09-08T02:17:29.981")
+        self.assertEqual(1757297849981_000, int(its_us))
+        self.assertEqual("2025-09-08T02:17:29.981000Z", its_us.isoformat())
+
+        its_us = iTSus("2025-09-08T02:17:29.981Z")
+        self.assertEqual(1757297849981_000, int(its_us))
+        self.assertEqual("2025-09-08T02:17:29.981000Z", its_us.isoformat())
 
     def test_constructors(self):
         ts = TS(1519855200.123456)
@@ -1125,6 +1148,20 @@ class Test_iTSus(TestCase):
 class Test_iTSns(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSns)
+
+    def test_itsns_ms_regression(self):
+        """ ensures that when the ts has ms precision, we don't add float imprecision/add extra digits when converting to ns """
+        its_ns = iTSns("2025-09-08T02:17:29.981", utc=False)
+        dt = datetime.fromisoformat("2025-09-08T02:17:29.981")
+        self.assertEqual(dt.timestamp(), its_ns.timestamp())
+
+        its_ns = iTSns("2025-09-08T02:17:29.981")
+        self.assertEqual(1757297849981_000_000, int(its_ns))
+        self.assertEqual("2025-09-08T02:17:29.981000000Z", its_ns.isoformat())
+
+        its_ns = iTSns("2025-09-08T02:17:29.981Z")
+        self.assertEqual(1757297849981_000_000, int(its_ns))
+        self.assertEqual("2025-09-08T02:17:29.981000000Z", its_ns.isoformat())
 
     def test_constructors(self):
         ts = TS(1519855200.123456789)

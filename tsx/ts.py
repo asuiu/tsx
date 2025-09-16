@@ -50,6 +50,7 @@ WEEK_SEC = 7 * DAY_SEC
 SECONDS_PER_DAY = 86400
 AVG_DAYS_PER_YEAR = 365.25  # Average considering leap years
 EPOCH_DT = datetime(1970, 1, 1)
+EPOCH_DT_UTC = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 class dTS:
@@ -157,6 +158,9 @@ class dTS:
     def __radd__(self, other):
         return self.__add__(other)
 
+    def __add__(self, other):
+        return self._add(other)
+
 
 @total_ordering
 class BaseTS(ABC, metaclass=ABCMeta):
@@ -173,9 +177,9 @@ class BaseTS(ABC, metaclass=ABCMeta):
                 return cls(v)
             except Exception:
                 raise TypeError(
-                    f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}"
+                    f"{repr(v)} of class {type(v)} CAN'T be converted to {cls}"
                 )
-        raise TypeError(f"{repr(v)} fo class {type(v)} CAN'T be converted to {cls}")
+        raise TypeError(f"{repr(v)} of class {type(v)} CAN'T be converted to {cls}")
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source, handler):
@@ -225,6 +229,38 @@ class BaseTS(ABC, metaclass=ABCMeta):
             dt = dt.replace(tzinfo=timezone.utc)
         float_val = dt.timestamp()
         return float_val
+
+    @classmethod
+    def _parse_iso_to_us_ts(cls, ts: str, utc: bool = True) -> int:
+        """
+        Attention: if timestamp has TZ info, it will ignore the utc parameter
+        This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
+        It will allow any of ISO-8601 formats, but will not allow any other formats
+        """
+        try:
+            dt = DEFAULT_ISO_PARSER(ts)
+        except ValueError:
+            if ts.endswith('Z'):
+                ts = ts[:-1]
+                utc = True
+            ts = ts.replace("-", "")
+            if len(ts) == 6:
+                ts += "01"
+            elif len(ts) == 4:
+                ts += "0101"
+            dt = DEFAULT_ISO_PARSER(ts)
+
+        if dt.tzinfo is None:
+            if utc:
+                dt = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt = dt.astimezone()
+        else:
+            if utc:
+                dt = dt.astimezone(timezone.utc)
+        d_dt = dt - EPOCH_DT_UTC
+        total_us = ((d_dt.days * 86400 + d_dt.seconds) * 10 ** 6 + d_dt.microseconds)
+        return total_us
 
     @classmethod
     def ns_timestamp_from_iso(cls, ts: str, utc: bool = True) -> int:
@@ -353,9 +389,18 @@ class BaseTS(ABC, metaclass=ABCMeta):
 
         Note: Excluded time components are truncated, not rounded.
         """
-        s = self.as_dt().isoformat(sep=sep, timespec=timespec)
+        # Let subclasses override the default 'auto' behavior for their precision
+        effective_timespec = self._get_auto_timespec() if timespec == "auto" else timespec
+        s = self.as_dt().isoformat(sep=sep, timespec=effective_timespec)
         s = s.replace("+00:00", "Z")
         return s
+
+    def _get_auto_timespec(self) -> str:
+        """
+        Return the appropriate timespec for 'auto' mode based on the timestamp class precision.
+        Subclasses can override this to provide precision-specific behavior.
+        """
+        return "auto"  # Use datetime's default auto behavior
 
     iso = isoformat
 
@@ -867,6 +912,19 @@ class iTS(iBaseTS):
     def as_sec(self) -> "iTS":
         return self
 
+    def _get_auto_timespec(self) -> str:
+        """
+        For second precision timestamps, 'auto' should default to seconds.
+        """
+        return "seconds"
+
+    def as_dt(self, tz: tzinfo = timezone.utc) -> datetime:
+        """
+        Returns an "aware" datetime object in UTC by default
+        """
+        utc_dt = datetime.fromtimestamp(int(self), tz=timezone.utc)
+        return utc_dt.astimezone(tz)
+
 
 class iTSms(iBaseTS):
     """
@@ -895,12 +953,28 @@ class iTSms(iBaseTS):
         if isinstance(ts, TS):
             int_val = round(ts.timestamp() * cls.UNITS_IN_SEC)
             return int.__new__(cls, int_val)
+        if isinstance(ts, (Number, Real)):
+            return int.__new__(cls, round(ts))
+
         float_val = cls._parse_to_float(ts, prec="ms", utc=utc)
         int_val = round(float_val * cls.UNITS_IN_SEC)
         return int.__new__(cls, int_val)
 
     def as_msec(self) -> "iTSms":
         return self
+
+    def as_dt(self, tz: tzinfo = timezone.utc) -> datetime:
+        """
+        Returns an "aware" datetime object in UTC by default
+        """
+        seconds, ms = divmod(self, 1000)
+        return datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds, milliseconds=ms)
+
+    def _get_auto_timespec(self) -> str:
+        """
+        For millisecond precision timestamps, 'auto' should default to milliseconds.
+        """
+        return "milliseconds"
 
 
 class iTSus(iBaseTS):
@@ -931,14 +1005,30 @@ class iTSus(iBaseTS):
             return int.__new__(cls, int_val)
         if isinstance(ts, Integral):
             return int.__new__(cls, ts)
-        if isinstance(ts, Real):
+        if isinstance(ts, (Number, Real)):
             return int.__new__(cls, round(ts))
-        float_val = cls._parse_to_float(ts, prec="us", utc=utc)
-        int_val = round(float_val * cls.UNITS_IN_SEC)
+        try:
+            int_val = cls._parse_iso_to_us_ts(ts, utc=utc)
+        except ValueError:
+            float_val = cls._parse_to_float(ts, prec="us", utc=utc)
+            int_val = round(float_val * cls.UNITS_IN_SEC)
         return int.__new__(cls, int_val)
 
     def as_usec(self) -> "iTSus":
         return self
+
+    def _get_auto_timespec(self) -> str:
+        """
+        For microsecond precision timestamps, 'auto' should default to microseconds.
+        """
+        return "microseconds"
+
+    def as_dt(self, tz: tzinfo = timezone.utc) -> datetime:
+        """
+        Returns an "aware" datetime object in UTC by default
+        """
+        seconds, us = divmod(self, 1_000_000)
+        return datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds, microseconds=us)
 
 
 class iTSns(iBaseTS):
@@ -970,13 +1060,14 @@ class iTSns(iBaseTS):
             return ts.as_nsec()
         if isinstance(ts, Integral):
             return int.__new__(cls, ts)
+        if isinstance(ts, (Number, Real)):
+            return int.__new__(cls, round(ts))
         if isinstance(ts, str):
             if cls.RE_NS_ISO.match(ts):
                 int_ts = cls.ns_timestamp_from_iso(ts, utc)
                 return int.__new__(cls, int_ts)
 
-        float_val = cls._parse_to_float(ts, prec="ns", utc=utc)
-        int_val = round(float_val * cls.UNITS_IN_SEC)
+        int_val = cls._parse_iso_to_us_ts(ts, utc=utc) * 1_000
         return int.__new__(cls, int_val)
 
     @classmethod
@@ -987,7 +1078,7 @@ class iTSns(iBaseTS):
     def as_nsec(self) -> "iTSns":
         return self
 
-    def isoformat(self, sep='T', timespec="nanoseconds") -> str:
+    def isoformat(self, sep='T', timespec="auto") -> str:
         """
         Return a string representing the date and time in ISO 8601 format:
             YYYY-MM-DDTHH:MM:SS.ffffff, if microsecond is not 0
@@ -1010,13 +1101,31 @@ class iTSns(iBaseTS):
 
         Note: Excluded time components are truncated, not rounded.
         """
-        if timespec == 'auto':
-            timespec = "nanoseconds"
-        if timespec != "nanoseconds":
-            return super().isoformat(sep=sep, timespec=timespec)
-        dt = np.datetime64(int(self), 'ns')
-        s = str(dt)
-        if sep != 'T':
-            s = s.replace('T', sep)
-        s = s + "Z"
-        return s
+        # Handle nanosecond precision specially since datetime doesn't support it
+        if timespec in ("auto", "nanoseconds"):
+            dt = np.datetime64(int(self), 'ns')
+            s = str(dt)
+            if sep != 'T':
+                s = s.replace('T', sep)
+            s = s + "Z"
+            return s
+
+        # For other timespec values, use the base class implementation
+        return super().isoformat(sep=sep, timespec=timespec)
+
+    def as_usec(self) -> "iTSus":
+        """
+        Converts to iTSus (integer timestamp in microseconds)
+        Note: it will round the timestamp to microseconds
+        """
+        us, ns = divmod(self, 1_000)
+        if ns > 500:
+            us += 1
+        return iTSus(us)
+
+    def as_dt(self, tz: tzinfo = timezone.utc) -> datetime:
+        """
+        Returns an "aware" datetime object in UTC by default;
+        Since the datetime object has a microsecond resolution, we'll convert to iTSus and return it
+        """
+        return self.as_usec().as_dt(tz)
