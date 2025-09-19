@@ -920,6 +920,12 @@ class Test_iTSms(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSms)
 
+    def test_error_message_regression(self):
+        a = "invalid-timestamp"
+        with self.assertRaises(ValueError) as e:
+            iTSms(a)
+        self.assertIn(a, str(e.exception))
+
     def test_constructors(self):
         ts = TS(1519855200.567)
         its = iTSms(ts)
@@ -1148,6 +1154,12 @@ class Test_iTSus(TestCase):
 class Test_iTSns(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSns)
+
+    def test_error_message_regression(self):
+        a = "invalid-timestamp"
+        with self.assertRaises(ValueError) as e:
+            iTSns(a)
+        self.assertIn(a, str(e.exception))
 
     def test_itsns_ms_regression(self):
         """ ensures that when the ts has ms precision, we don't add float imprecision/add extra digits when converting to ns """

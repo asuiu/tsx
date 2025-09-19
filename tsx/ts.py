@@ -240,15 +240,19 @@ class BaseTS(ABC, metaclass=ABCMeta):
         try:
             dt = DEFAULT_ISO_PARSER(ts)
         except ValueError:
-            if ts.endswith('Z'):
-                ts = ts[:-1]
+            stripped_ts = ts.replace("-", "")
+            if stripped_ts.endswith('Z'):
+                stripped_ts = stripped_ts[:-1]
                 utc = True
-            ts = ts.replace("-", "")
-            if len(ts) == 6:
-                ts += "01"
-            elif len(ts) == 4:
-                ts += "0101"
-            dt = DEFAULT_ISO_PARSER(ts)
+
+            if len(stripped_ts) == 6:
+                stripped_ts += "01"
+            elif len(stripped_ts) == 4:
+                stripped_ts += "0101"
+            try:
+                dt = DEFAULT_ISO_PARSER(stripped_ts)
+            except ValueError as e:
+                raise ValueError(f"Invalid ISO timestamp: {ts!r}. Expected ISO-8601 format. Parsing error: {e}") from e
 
         if dt.tzinfo is None:
             if utc:
