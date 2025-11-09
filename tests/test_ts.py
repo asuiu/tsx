@@ -1155,6 +1155,15 @@ class Test_iTSns(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSns)
 
+    def test_regression_itsns_constructor_vs_from_iso(self):
+        """Test that iTSns() and iTSns.from_iso() produce the same result"""
+        date_str = "2025-11-02T13:45:14.012345678Z"
+        result1 = iTSns(date_str)
+        result2 = iTSns.from_iso(date_str)
+        self.assertEqual(result1, result2)
+        self.assertEqual( 1762091114012345678, int(result1))
+        self.assertEqual(result2.isoformat(), date_str)
+
     def test_error_message_regression(self):
         a = "invalid-timestamp"
         with self.assertRaises(ValueError) as e:

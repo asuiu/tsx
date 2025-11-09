@@ -1079,6 +1079,18 @@ class iTSns(iBaseTS):
         tns = time_ns()
         return cls(tns)
 
+    @classmethod
+    def from_iso(cls, ts: str, utc: bool = True) -> Self:
+        """
+        Attention: if timestamp has TZ info, it will ignore the utc parameter
+        This method exists because dateutil.parser is too generic and wrongly parses basic ISO date like `20210101`
+        It will allow any of ISO-8601 formats, but will not allow any other formats
+        """
+        if len(ts) <= 14:  # has <= seconds precision
+            return super().from_iso(ts, utc)
+        i = cls.ns_timestamp_from_iso(ts, utc)
+        return cls(i)
+
     def as_nsec(self) -> "iTSns":
         return self
 
