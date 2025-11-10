@@ -1164,6 +1164,17 @@ class Test_iTSns(TestCase):
         self.assertEqual( 1762091114012345678, int(result1))
         self.assertEqual(result2.isoformat(), date_str)
 
+    def test_regression_from_basic_iso(self):
+        ts_str = "20251007T131121.098321827Z"
+        its = iTSns.from_iso(ts_str)
+        self.assertEqual("2025-10-07T13:11:21.098321827Z", its.isoformat())
+        self.assertEqual(ts_str, its.iso_basic(sep="T"))
+        self.assertEqual("20251007T131121.098321827", its.iso_basic(sep="T", use_zulu=False))
+        self.assertEqual("20251007-131121.098321827Z", its.iso_basic())
+        self.assertEqual("20251007-131121.098321827", its.iso_basic(use_zulu=False))
+        its = iTSns(ts_str)
+        self.assertEqual(its.iso_basic(sep="T"), ts_str)
+
     def test_error_message_regression(self):
         a = "invalid-timestamp"
         with self.assertRaises(ValueError) as e:
@@ -1327,7 +1338,7 @@ class Test_iTSns(TestCase):
         self.assertEqual(ts, ts2)
 
     def test_user_warning(self):
-        ts_str = '1970-01-01T00:00:00.100000000Z'
+        ts_str = "1970-01-01T00:00:00.100000000Z"
 
         i_ns = BaseTS.ns_timestamp_from_iso(ts_str[:-1], utc=True)
         self.assertEqual(i_ns, 100000000)
@@ -1337,6 +1348,12 @@ class Test_iTSns(TestCase):
 
         i_ns = BaseTS.ns_timestamp_from_iso(ts_str, utc=True)
         self.assertEqual(i_ns, 100000000)
+
+        self.assertEqual( 0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00", utc=False))
+        self.assertEqual(0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00"))
+        self.assertEqual(0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00Z", utc=False))
+        self.assertEqual(0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00Z"))
+
 
 
 class TestTimedeltaOps(TestCase):

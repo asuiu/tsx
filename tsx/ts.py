@@ -51,6 +51,7 @@ SECONDS_PER_DAY = 86400
 AVG_DAYS_PER_YEAR = 365.25  # Average considering leap years
 EPOCH_DT = datetime(1970, 1, 1)
 EPOCH_DT_UTC = datetime(1970, 1, 1, tzinfo=timezone.utc)
+SUBSEC_TS_RE = re.compile(r"^(.+\d)\.(\d{1,9})([^0-9].*)?$")
 
 
 class dTS:
@@ -272,15 +273,16 @@ class BaseTS(ABC, metaclass=ABCMeta):
         Attention: if timestamp has TZ info, it will ignore the utc parameter. It will allow any of ISO-8601 formats, but will not allow any other formats.
         If utc is False, we'll use the iTSms to compute the timestamp in milliseconds (as it properly computes the tzone), and just append the microseconds
         """
-        ts_noZ = ts[:-1] if ts.endswith('Z') else ts
-        its = int(np.datetime64(ts_noZ, "ns"))
-        if utc or ts.endswith('Z'):
-            return its
-        else:
-            itsms = int(iTSms(ts, utc)) * 1_000_000
-            us = its % 1_000_000
-            its = itsms + us
-            return its
+        m = SUBSEC_TS_RE.match(ts)
+        if m is None:
+            return cls._parse_iso_to_us_ts(ts) * 1_000
+        ts, subsec, rest = m.groups()
+        ts_and_z = ts + rest if rest else ts
+        ns_no_z = subsec.ljust(9, "0")
+
+        float_val = cls._parse_to_float(ts_and_z, prec="s", utc=utc)
+        int_val = round(float_val)
+        return int_val * 1_000_000_000 + int(ns_no_z)
 
     @classmethod
     def _from_number(cls, ts: Union[float, int], prec: Literal["s", "ms", "us", "ns"]):
@@ -1145,3 +1147,13 @@ class iTSns(iBaseTS):
         Since the datetime object has a microsecond resolution, we'll convert to iTSus and return it
         """
         return self.as_usec().as_dt(tz)
+
+    def iso_basic(self, sep="-", use_zulu: bool = True) -> str:
+        """
+        Returns Basic ISO date format with nanosecond precision, like example: 20210101-000000.123456789Z
+        When (sep='T',use_zulu=False) produces: 20210101T131121.098321827
+        """
+        seconds, ns = divmod(self, 1_000_000_000)
+        zulu_designator = "Z" if use_zulu else ""
+        dt = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds)
+        return dt.strftime(f"%Y%m%d{sep}%H%M%S.{ns:09d}{zulu_designator}")
