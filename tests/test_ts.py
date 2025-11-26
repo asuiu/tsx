@@ -1161,7 +1161,7 @@ class Test_iTSns(TestCase):
         result1 = iTSns(date_str)
         result2 = iTSns.from_iso(date_str)
         self.assertEqual(result1, result2)
-        self.assertEqual( 1762091114012345678, int(result1))
+        self.assertEqual(1762091114012345678, int(result1))
         self.assertEqual(result2.isoformat(), date_str)
 
     def test_regression_from_basic_iso(self):
@@ -1349,11 +1349,10 @@ class Test_iTSns(TestCase):
         i_ns = BaseTS.ns_timestamp_from_iso(ts_str, utc=True)
         self.assertEqual(i_ns, 100000000)
 
-        self.assertEqual( 0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00", utc=False))
+        self.assertEqual(0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00", utc=False))
         self.assertEqual(0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00"))
         self.assertEqual(0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00Z", utc=False))
         self.assertEqual(0, BaseTS.ns_timestamp_from_iso("1970-01-01T00:00:00Z"))
-
 
 
 class TestTimedeltaOps(TestCase):
@@ -1630,7 +1629,7 @@ class TestTSInterval(TestCase):
     def test_init_with_float(self):
         """Test initialization with float timestamps should raise TypeError"""
         start_float = 1514764800.0  # 2018-01-01T00:00:00Z
-        end_float = 1514851200.0    # 2018-01-02T00:00:00Z
+        end_float = 1514851200.0  # 2018-01-02T00:00:00Z
         with self.assertRaises(TypeError):
             TSInterval(start_float, end_float)
 
@@ -1702,6 +1701,90 @@ class TestTSInterval(TestCase):
         self.assertEqual(len(parts), 2)
         self.assertEqual(parts[0], self.ts1.as_iso_basic)
         self.assertEqual(parts[1], self.ts2.as_iso_basic)
+
+    def test_isoformat_default_separator(self):
+        """Test isoformat method with default separator"""
+        iso_str = self.interval1.isoformat()
+        self.assertIn("/", iso_str)
+        parts = iso_str.split("/")
+        self.assertEqual(len(parts), 2)
+        # Verify the format matches the isoformat() method of timestamps
+        self.assertEqual(parts[0], self.ts1.isoformat())
+        self.assertEqual(parts[1], self.ts2.isoformat())
+
+    def test_isoformat_custom_separator(self):
+        """Test isoformat method with custom separator"""
+        iso_str = self.interval1.isoformat(stampsep="|")
+        self.assertIn("|", iso_str)
+        parts = iso_str.split("|")
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0], self.ts1.isoformat())
+        self.assertEqual(parts[1], self.ts2.isoformat())
+
+    def test_isoformat_with_different_timestamp_types(self):
+        """Test isoformat with different BaseTS subclasses"""
+        # Test with iTS
+        its1 = iTS("2018-01-01T00:00:00Z")
+        its2 = iTS("2018-01-02T00:00:00Z")
+        interval_its = TSInterval(its1, its2)
+        iso_str = interval_its.isoformat()
+        self.assertIn("/", iso_str)
+        parts = iso_str.split("/")
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0], its1.isoformat())
+        self.assertEqual(parts[1], its2.isoformat())
+
+    def test_isoformat_with_iTSms(self):
+        """Test isoformat with iTSms timestamps"""
+        itsms1 = iTSms("2018-01-01T00:00:00Z")
+        itsms2 = iTSms("2018-01-02T00:00:00Z")
+        interval_itsms = TSInterval(itsms1, itsms2)
+        iso_str = interval_itsms.isoformat()
+        self.assertIn("/", iso_str)
+        parts = iso_str.split("/")
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0], itsms1.isoformat())
+        self.assertEqual(parts[1], itsms2.isoformat())
+
+    def test_isoformat_with_iTSus(self):
+        """Test isoformat with iTSus timestamps"""
+        itsus1 = iTSus("2018-01-01T00:00:00Z")
+        itsus2 = iTSus("2018-01-02T00:00:00Z")
+        interval_itsus = TSInterval(itsus1, itsus2)
+        iso_str = interval_itsus.isoformat()
+        self.assertIn("/", iso_str)
+        parts = iso_str.split("/")
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0], itsus1.isoformat())
+        self.assertEqual(parts[1], itsus2.isoformat())
+
+    def test_isoformat_with_iTSns(self):
+        """Test isoformat with iTSns timestamps"""
+        itsns1 = iTSns("2018-01-01T00:00:00Z")
+        itsns2 = iTSns("2018-01-02T00:00:00Z")
+        interval_itsns = TSInterval(itsns1, itsns2)
+        iso_str = interval_itsns.isoformat()
+        self.assertIn("/", iso_str)
+        parts = iso_str.split("/")
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0], itsns1.isoformat())
+        self.assertEqual(parts[1], itsns2.isoformat())
+
+    def test_isoformat_repr_str(self):
+        """Test isoformat with iTSns timestamps"""
+        itsns1 = iTSus("2018-01-01T00:00:00Z")
+        itsns2 = iTSns("2018-01-02T00:00:00Z")
+        interval_itsns = TSInterval(itsns1, itsns2)
+        iso_str = str(interval_itsns)
+        iso_repr = repr(interval_itsns)
+        self.assertEqual("TSInterval('2018-01-01T00:00:00.000000Z', '2018-01-02T00:00:00.000000000Z')", iso_repr)
+        self.assertEqual("2018-01-01T00:00:00.000000Z/2018-01-02T00:00:00.000000000Z", iso_str)
+
+    def test_as_iso_backward_compatibility(self):
+        """Test that as_iso property still works for backward compatibility"""
+        iso_str = self.interval1.as_iso
+        iso_format_str = self.interval1.isoformat()
+        self.assertEqual(iso_str, iso_format_str)
 
     def test_contains_inclusive(self):
         """Test contains method with various timestamps"""
@@ -2054,7 +2137,7 @@ class TestTSInterval(TestCase):
         # Find overlapping intervals
         test_interval = TSInterval(
             TS(float(self.ts1) + 43200),  # Halfway through interval1
-            TS(float(self.ts2) + 43200)   # Halfway through interval2
+            TS(float(self.ts2) + 43200)  # Halfway through interval2
         )
 
         overlapping = [i for i in intervals if i.overlaps(test_interval)]

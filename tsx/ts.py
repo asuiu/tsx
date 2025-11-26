@@ -849,10 +849,19 @@ class TSInterval:
         """Returns the midpoint timestamp of the interval"""
         return TS((float(self._start) + float(self._end)) / 2)
 
+    def isoformat(self, stampsep: str = "/", timesep: str = "T", timespec: str = "auto") -> str:
+        """
+        Returns ISO 8601 interval representation: start/end
+
+        :param ts_sep: Separator between start and end timestamps (default: "/")
+        :return: ISO 8601 formatted interval string
+        """
+        return f"{self._start.isoformat(sep=timesep, timespec=timespec)}{stampsep}{self._end.isoformat(sep=timesep, timespec=timespec)}"
+
     @property
     def as_iso(self) -> str:
-        """Returns ISO 8601 interval representation: start/end"""
-        return f"{self._start.as_iso}/{self._end.as_iso}"
+        """Returns ISO 8601 interval representation: start/end (deprecated, use isoformat() instead)"""
+        return self.isoformat()
 
     @property
     def as_iso_basic(self) -> str:
@@ -1054,10 +1063,10 @@ class TSInterval:
         return hash((self._start.as_nsec(), self._end.as_nsec()))
 
     def __repr__(self) -> str:
-        return f"TSInterval({self._start.as_iso!r}, {self._end.as_iso!r})"
+        return f"TSInterval({self._start.isoformat()!r}, {self._end.isoformat()!r})"
 
     def __str__(self) -> str:
-        return self.as_iso
+        return self.isoformat()
 
 
 class iBaseTS(BaseTS, int):
