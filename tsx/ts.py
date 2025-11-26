@@ -15,7 +15,7 @@ from datetime import datetime, timezone, tzinfo, timedelta, date, time
 from functools import total_ordering
 from numbers import Integral, Real, Number
 from time import time_ns
-from typing import Union, Optional, Tuple
+from typing import Union, Optional, Tuple, Any
 
 try:
     from typing import Self, Literal, override
@@ -73,6 +73,8 @@ class dTS:
         'us': 1_000,
         'ns': 1,
     }
+
+    __slots__ = ("_delta_ns", "_months")
 
     @classmethod
     def _get_deltas(cls, delta: int, unit: str) -> Tuple[int, int]:
@@ -155,6 +157,27 @@ class dTS:
         if not isinstance(o, dTS):
             return False
         return self._months == o._months and self._delta_ns == o._delta_ns
+
+    def _assert_scalar_ns(self) -> int:
+        if self._months != 0:
+            raise ValueError("Cannot convert month-based dTS to scalar units")
+        return self._delta_ns
+
+    def as_nsec(self) -> int:
+        """Return the delta expressed in nanoseconds."""
+        return self._assert_scalar_ns()
+
+    def as_usec(self) -> int:
+        """Return the delta expressed in microseconds."""
+        return round(self.as_nsec() / 1_000)
+
+    def as_msec(self) -> int:
+        """Return the delta expressed in milliseconds."""
+        return round(self.as_nsec() / 1_000_000)
+
+    def as_sec(self) -> int:
+        """Return the delta expressed in seconds."""
+        return round(self.as_nsec() / 1_000_000_000)
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -769,6 +792,272 @@ class TSMsec(TS):
     def from_parts_utc(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0) -> Self:
         dt = datetime(y, m, d, hh, mm, ss, ms * 1000 + us, tzinfo=timezone.utc)
         return cls(dt)
+
+
+@total_ordering
+class TSInterval:
+    """
+    Represents a time interval with start and end timestamps.
+    Provides utilities for interval manipulation, querying, and comparison.
+    """
+
+    __slots__ = ("_start", "_end")
+
+    def __init__(self, start: BaseTS, end: BaseTS):
+        """
+        Initialize a time interval with start and end timestamps.
+
+        :param start: Start timestamp (BaseTS)
+        :param end: End timestamp (BaseTS)
+        :raises ValueError: If start >= end
+        """
+        if not isinstance(start, BaseTS):
+            raise TypeError(f"start must be a BaseTS, got {type(start)}")
+        if not isinstance(end, BaseTS):
+            raise TypeError(f"end must be a BaseTS, got {type(end)}")
+        object.__setattr__(self, "_start", start)
+        object.__setattr__(self, "_end", end)
+        if self._start >= self._end:
+            raise ValueError(f"Start timestamp ({self._start}) must be before end timestamp ({self._end})")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in self.__slots__ and hasattr(self, name):
+            raise AttributeError("TSInterval instances are immutable")
+        object.__setattr__(self, name, value)
+
+    @property
+    def start(self) -> BaseTS:
+        """Returns the start timestamp of the interval"""
+        return self._start
+
+    @property
+    def end(self) -> BaseTS:
+        """Returns the end timestamp of the interval"""
+        return self._end
+
+    @property
+    def duration(self) -> dTS:
+        """Returns the duration of the interval as dTS (time delta in nanoseconds)"""
+        # Calculate duration in nanoseconds for precision
+        start_ns = int(self._start.as_nsec())
+        end_ns = int(self._end.as_nsec())
+        delta_ns = end_ns - start_ns
+        return dTS(delta_ns, unit="ns")
+
+    @property
+    def midpoint(self) -> TS:
+        """Returns the midpoint timestamp of the interval"""
+        return TS((float(self._start) + float(self._end)) / 2)
+
+    @property
+    def as_iso(self) -> str:
+        """Returns ISO 8601 interval representation: start/end"""
+        return f"{self._start.as_iso}/{self._end.as_iso}"
+
+    @property
+    def as_iso_basic(self) -> str:
+        """Returns basic ISO interval representation"""
+        return f"{self._start.as_iso_basic}/{self._end.as_iso_basic}"
+
+    def contains(self, ts: BaseTS) -> bool:
+        """
+        Check if a timestamp is within this interval (inclusive on both ends).
+
+        :param ts: Timestamp to check
+        :return: True if timestamp is within the interval
+        """
+        return self._start <= ts <= self._end
+
+    def __contains__(self, ts: BaseTS) -> bool:
+        """Enable `in` checks for timestamps inside the interval."""
+        return self.contains(ts)
+
+    def contains_exclusive(self, ts: BaseTS) -> bool:
+        """
+        Check if a timestamp is within this interval (exclusive on both ends).
+
+        :param ts: Timestamp to check
+        :return: True if timestamp is strictly within the interval
+        """
+        return self._start < ts < self._end
+
+    def overlaps(self, other: "TSInterval") -> bool:
+        """
+        Check if this interval overlaps with another interval.
+
+        :param other: Another TSInterval to check against
+        :return: True if intervals overlap
+        """
+        return self._start < other._end and self._end > other._start
+
+    def overlaps_inclusive(self, other: "TSInterval") -> bool:
+        """
+        Check if intervals overlap or touch (inclusive boundaries).
+
+        :param other: Another TSInterval to check against
+        :return: True if intervals overlap or touch
+        """
+        return self._start <= other._end and self._end >= other._start
+
+    def intersection(self, other: "TSInterval") -> Optional["TSInterval"]:
+        """
+        Get the intersection of this interval with another interval.
+
+        :param other: Another TSInterval to intersect with
+        :return: New TSInterval representing the intersection, or None if no overlap
+        """
+        if not self.overlaps(other):
+            return None
+        start_intersect = max(self._start, other._start)
+        end_intersect = min(self._end, other._end)
+        return TSInterval(start_intersect, end_intersect)
+
+    def union(self, other: "TSInterval") -> Optional["TSInterval"]:
+        """
+        Get the union of this interval with another interval (only if they overlap or touch).
+
+        :param other: Another TSInterval to union with
+        :return: New TSInterval representing the union, or None if intervals don't overlap/touch
+        """
+        if not self.overlaps_inclusive(other):
+            return None
+        start_union = min(self._start, other._start)
+        end_union = max(self._end, other._end)
+        return TSInterval(start_union, end_union)
+
+    def __and__(self, other: object) -> Optional["TSInterval"]:
+        if not isinstance(other, TSInterval):
+            return NotImplemented
+        return self.intersection(other)
+
+    def __rand__(self, other: object) -> Optional["TSInterval"]:
+        return self.__and__(other)
+
+    def __or__(self, other: object) -> Optional["TSInterval"]:
+        if not isinstance(other, TSInterval):
+            return NotImplemented
+        return self.union(other)
+
+    def __ror__(self, other: object) -> Optional["TSInterval"]:
+        return self.__or__(other)
+
+    def shift(self, delta: Union[dTS, timedelta, float]) -> "TSInterval":
+        """
+        Create a new interval shifted by a given delta.
+
+        :param delta: Time delta (dTS, timedelta, or float seconds)
+        :return: New shifted TSInterval
+        """
+        if isinstance(delta, float):
+            delta = dTS(delta, unit="s")
+        new_start = self._start + delta
+        new_end = self._end + delta
+        return TSInterval(new_start, new_end)
+
+    def expand(self, before: Union[dTS, timedelta, float] = 0, after: Union[dTS, timedelta, float] = 0) -> "TSInterval":
+        """
+        Create a new interval expanded by given deltas.
+
+        :param before: Expand before start (dTS, timedelta, or float seconds)
+        :param after: Expand after end (dTS, timedelta, or float seconds)
+        :return: New expanded TSInterval
+        """
+        if isinstance(before, (float, int)):
+            before_delta = dTS(before, unit="s")
+        else:
+            before_delta = before
+        if isinstance(after, (float, int)):
+            after_delta = dTS(after, unit="s")
+        else:
+            after_delta = after
+
+        new_start = self._start - before_delta
+        new_end = self._end + after_delta
+        return TSInterval(new_start, new_end)
+
+    def shrink(self, from_start: Union[dTS, timedelta, float] = 0, from_end: Union[dTS, timedelta, float] = 0) -> "TSInterval":
+        """
+        Create a new interval shrunk by given deltas from each end.
+
+        :param from_start: Shrink from start (dTS, timedelta, or float seconds)
+        :param from_end: Shrink from end (dTS, timedelta, or float seconds)
+        :return: New shrunk TSInterval
+        :raises ValueError: If resulting interval would be invalid
+        """
+        if isinstance(from_start, (float, int)):
+            start_delta = dTS(from_start, unit="s")
+        else:
+            start_delta = from_start
+        if isinstance(from_end, (float, int)):
+            end_delta = dTS(from_end, unit="s")
+        else:
+            end_delta = from_end
+
+        new_start = self._start + start_delta
+        new_end = self._end - end_delta
+        return TSInterval(new_start, new_end)
+
+    def split(self, ts: BaseTS) -> Tuple["TSInterval", "TSInterval"]:
+        """
+        Split the interval at a given timestamp into two intervals.
+
+        :param ts: Timestamp to split at
+        :return: Tuple of two TSIntervals (before and after)
+        :raises ValueError: If timestamp is not within the interval
+        """
+        if not self.contains(ts):
+            raise ValueError(f"Timestamp {ts} is not within the interval {self}")
+        return TSInterval(self._start, ts), TSInterval(ts, self._end)
+
+    def gap_to(self, other: "TSInterval") -> Optional[float]:
+        """
+        Get the gap (in seconds) between this interval and another.
+        Returns 0 if intervals touch, negative if they overlap.
+
+        :param other: Another TSInterval
+        :return: Gap in seconds, or 0 if touching/overlapping
+        """
+        if self._end <= other._start:
+            return float(other._start - self._end)
+        elif other._end <= self._start:
+            return float(self._start - other._end)
+        else:
+            # Overlapping - return negative value representing overlap
+            overlap = min(self._end, other._end) - max(self._start, other._start)
+            return -float(overlap)
+
+    def is_before(self, other: "TSInterval") -> bool:
+        """Check if this interval is completely before another interval"""
+        return self._end <= other._start
+
+    def is_after(self, other: "TSInterval") -> bool:
+        """Check if this interval is completely after another interval"""
+        return self._start >= other._end
+
+    def is_adjacent_to(self, other: "TSInterval") -> bool:
+        """Check if intervals are adjacent (touching but not overlapping)"""
+        return self._end == other._start or other._end == self._start
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TSInterval):
+            return False
+        return self._start == other._start and self._end == other._end
+
+    def __lt__(self, other: "TSInterval") -> bool:
+        if not isinstance(other, TSInterval):
+            return NotImplemented
+        if self._start != other._start:
+            return self._start < other._start
+        return self._end < other._end
+
+    def __hash__(self) -> int:
+        return hash((self._start.as_nsec(), self._end.as_nsec()))
+
+    def __repr__(self) -> str:
+        return f"TSInterval({self._start.as_iso!r}, {self._end.as_iso!r})"
+
+    def __str__(self) -> str:
+        return self.as_iso
 
 
 class iBaseTS(BaseTS, int):

@@ -21,7 +21,7 @@ import pytz
 from dateutil import tz
 from pydantic import BaseModel
 
-from tsx import TS, TSMsec, iTS, iTSms, iTSus, iTSns
+from tsx import TS, TSMsec, iTS, iTSms, iTSus, iTSns, TSInterval
 from tsx.ts import dTS, BaseTS
 
 
@@ -1604,6 +1604,501 @@ class TestTimedeltaOps(TestCase):
         # Test that subtraction is inverse of addition
         back_to_base = result - td_complex
         self.assertAlmostEqual(float(back_to_base), float(base), places=9)
+
+
+class TestTSInterval(TestCase):
+    """Comprehensive tests for TSInterval class"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.ts1 = TS("2018-01-01T00:00:00Z")
+        self.ts2 = TS("2018-01-02T00:00:00Z")
+        self.ts3 = TS("2018-01-03T00:00:00Z")
+        self.ts4 = TS("2018-01-04T00:00:00Z")
+
+        self.interval1 = TSInterval(self.ts1, self.ts2)
+        self.interval2 = TSInterval(self.ts2, self.ts3)
+        self.interval3 = TSInterval(self.ts1, self.ts3)
+
+    def test_init_valid(self):
+        """Test valid interval initialization"""
+        interval = TSInterval(self.ts1, self.ts2)
+        self.assertIsNotNone(interval)
+        self.assertIsInstance(interval.start, BaseTS)
+        self.assertIsInstance(interval.end, BaseTS)
+
+    def test_init_with_float(self):
+        """Test initialization with float timestamps should raise TypeError"""
+        start_float = 1514764800.0  # 2018-01-01T00:00:00Z
+        end_float = 1514851200.0    # 2018-01-02T00:00:00Z
+        with self.assertRaises(TypeError):
+            TSInterval(start_float, end_float)
+
+    def test_init_with_int(self):
+        """Test initialization with integer timestamps should raise TypeError"""
+        start_int = 1514764800
+        end_int = 1514851200
+        with self.assertRaises(TypeError):
+            TSInterval(start_int, end_int)
+
+    def test_init_invalid_equal_timestamps(self):
+        """Test that start == end raises ValueError"""
+        with self.assertRaises(ValueError):
+            TSInterval(self.ts1, self.ts1)
+
+    def test_init_invalid_start_after_end(self):
+        """Test that start > end raises ValueError"""
+        with self.assertRaises(ValueError):
+            TSInterval(self.ts2, self.ts1)
+
+    def test_properties_start_end(self):
+        """Test start and end properties"""
+        self.assertEqual(self.interval1.start, self.ts1)
+        self.assertEqual(self.interval1.end, self.ts2)
+
+    def test_duration_seconds(self):
+        """Test duration property returns dTS in seconds"""
+        duration = self.interval1.duration
+        self.assertIsInstance(duration, dTS)
+        self.assertEqual(str(duration), "1d")  # 1 day in dTS format
+        # Verify it represents the correct duration
+        self.assertEqual(duration._delta_ns, 86400 * 1_000_000_000)
+
+    def test_duration_ms(self):
+        """Test duration_ms property"""
+        duration_ms = self.interval1.duration.as_msec()
+        self.assertEqual(duration_ms, 86400000)
+
+    def test_duration_us(self):
+        """Test duration_us property"""
+        duration_us = self.interval1.duration.as_usec()
+        self.assertEqual(duration_us, 86400000000)
+
+    def test_duration_ns(self):
+        """Test duration_ns property"""
+        duration_ns = self.interval1.duration.as_nsec()
+        self.assertEqual(duration_ns, 86400000000000)
+
+    def test_midpoint(self):
+        """Test midpoint calculation"""
+        midpoint = self.interval1.midpoint
+        expected = TS((float(self.ts1) + float(self.ts2)) / 2)
+        self.assertEqual(midpoint, expected)
+
+    def test_as_iso_format(self):
+        """Test ISO 8601 interval representation"""
+        iso_str = self.interval1.as_iso
+        self.assertIn("/", iso_str)
+        parts = iso_str.split("/")
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0], self.ts1.as_iso)
+        self.assertEqual(parts[1], self.ts2.as_iso)
+
+    def test_as_iso_basic_format(self):
+        """Test basic ISO interval representation"""
+        basic_str = self.interval1.as_iso_basic
+        self.assertIn("/", basic_str)
+        parts = basic_str.split("/")
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0], self.ts1.as_iso_basic)
+        self.assertEqual(parts[1], self.ts2.as_iso_basic)
+
+    def test_contains_inclusive(self):
+        """Test contains method with various timestamps"""
+        # Start point
+        self.assertTrue(self.interval1.contains(self.ts1))
+        # End point
+        self.assertTrue(self.interval1.contains(self.ts2))
+        # Midpoint
+        midpoint = TS((float(self.ts1) + float(self.ts2)) / 2)
+        self.assertTrue(self.interval1.contains(midpoint))
+        # Before interval
+        before = TS(float(self.ts1) - 1)
+        self.assertFalse(self.interval1.contains(before))
+        # After interval
+        after = TS(float(self.ts2) + 1)
+        self.assertFalse(self.interval1.contains(after))
+
+    def test_contains_with_ts_timestamp(self):
+        """Test contains with TS timestamp"""
+        mid_ts = TS("2018-01-01T12:00:00Z")
+        self.assertTrue(self.interval1.contains(mid_ts))
+
+    def test_contains_exclusive(self):
+        """Test contains_exclusive method"""
+        # Start point (should exclude)
+        self.assertFalse(self.interval1.contains_exclusive(self.ts1))
+        # End point (should exclude)
+        self.assertFalse(self.interval1.contains_exclusive(self.ts2))
+        # Midpoint (should include)
+        midpoint = TS((float(self.ts1) + float(self.ts2)) / 2)
+        self.assertTrue(self.interval1.contains_exclusive(midpoint))
+
+    def test_overlaps_overlapping(self):
+        """Test overlaps with overlapping intervals"""
+        # interval1: ts1 to ts2, interval3: ts1 to ts3 (overlaps)
+        self.assertTrue(self.interval1.overlaps(self.interval3))
+        self.assertTrue(self.interval3.overlaps(self.interval1))
+
+    def test_overlaps_adjacent(self):
+        """Test overlaps with adjacent intervals"""
+        # interval1: ts1 to ts2, interval2: ts2 to ts3 (touching at ts2, not overlapping)
+        self.assertFalse(self.interval1.overlaps(self.interval2))
+        self.assertFalse(self.interval2.overlaps(self.interval1))
+
+    def test_overlaps_separated(self):
+        """Test overlaps with separated intervals"""
+        interval_far = TSInterval(self.ts3, self.ts4)
+        self.assertFalse(self.interval1.overlaps(interval_far))
+
+    def test_overlaps_inclusive(self):
+        """Test overlaps_inclusive with adjacent intervals"""
+        # interval1: ts1 to ts2, interval2: ts2 to ts3 (touching at ts2)
+        self.assertTrue(self.interval1.overlaps_inclusive(self.interval2))
+        self.assertTrue(self.interval2.overlaps_inclusive(self.interval1))
+
+    def test_overlaps_inclusive_separated(self):
+        """Test overlaps_inclusive with separated intervals"""
+        interval_far = TSInterval(self.ts3, self.ts4)
+        self.assertFalse(self.interval1.overlaps_inclusive(interval_far))
+
+    def test_intersection_overlapping(self):
+        """Test intersection of overlapping intervals"""
+        # interval1: ts1 to ts2, interval3: ts1 to ts3
+        intersection = self.interval1.intersection(self.interval3)
+        self.assertIsNotNone(intersection)
+        self.assertEqual(intersection.start, self.ts1)
+        self.assertEqual(intersection.end, self.ts2)
+
+    def test_intersection_no_overlap(self):
+        """Test intersection of non-overlapping intervals"""
+        # interval1: ts1 to ts2, interval2: ts2 to ts3 (no overlap)
+        intersection = self.interval1.intersection(self.interval2)
+        self.assertIsNone(intersection)
+
+    def test_union_overlapping(self):
+        """Test union of overlapping intervals"""
+        # interval1: ts1 to ts2, interval3: ts1 to ts3
+        union = self.interval1.union(self.interval3)
+        self.assertIsNotNone(union)
+        self.assertEqual(union.start, self.ts1)
+        self.assertEqual(union.end, self.ts3)
+
+    def test_union_adjacent(self):
+        """Test union of adjacent intervals"""
+        # interval1: ts1 to ts2, interval2: ts2 to ts3
+        union = self.interval1.union(self.interval2)
+        self.assertIsNotNone(union)
+        self.assertEqual(union.start, self.ts1)
+        self.assertEqual(union.end, self.ts3)
+
+    def test_union_no_overlap(self):
+        """Test union of non-touching intervals"""
+        interval_far = TSInterval(self.ts3, self.ts4)
+        union = self.interval1.union(interval_far)
+        self.assertIsNone(union)
+
+    def test_magic_subset_operations(self):
+        """Test &, | return intersection and union semantics"""
+        interval_a = TSInterval(self.ts1, self.ts3)
+        interval_b = TSInterval(self.ts2, self.ts4)
+        intersection = interval_a & interval_b
+        self.assertEqual(intersection, self.interval2)
+        union = interval_a | interval_b
+        self.assertEqual(union, TSInterval(self.ts1, self.ts4))
+        disjoint = TSInterval(TS("2025-01-01T00:00:00Z"), TS("2025-01-02T00:00:00Z"))
+        self.assertIsNone(interval_a & disjoint)
+        self.assertIsNone(interval_a | disjoint)
+
+    def test_shift_positive_delta(self):
+        """Test shifting interval forward"""
+        delta = dTS("1d")
+        shifted = self.interval1.shift(delta)
+        expected_start = self.ts1 + delta
+        expected_end = self.ts2 + delta
+        self.assertEqual(shifted.start, expected_start)
+        self.assertEqual(shifted.end, expected_end)
+
+    def test_shift_negative_delta(self):
+        """Test shifting interval backward"""
+        delta = dTS("-1d")
+        shifted = self.interval1.shift(delta)
+        expected_start = self.ts1 + delta
+        expected_end = self.ts2 + delta
+        self.assertEqual(shifted.start, expected_start)
+        self.assertEqual(shifted.end, expected_end)
+
+    def test_shift_with_float_seconds(self):
+        """Test shift with float seconds"""
+        shifted = self.interval1.shift(3600.0)  # 1 hour
+        self.assertAlmostEqual(float(shifted.start), float(self.ts1) + 3600, places=6)
+        self.assertAlmostEqual(float(shifted.end), float(self.ts2) + 3600, places=6)
+
+    def test_shift_with_timedelta(self):
+        """Test shift with timedelta"""
+        shifted = self.interval1.shift(timedelta(hours=2))
+        self.assertAlmostEqual(float(shifted.start), float(self.ts1) + 7200, places=6)
+        self.assertAlmostEqual(float(shifted.end), float(self.ts2) + 7200, places=6)
+
+    def test_expand_before(self):
+        """Test expanding interval before start"""
+        delta = dTS("1d")
+        expanded = self.interval1.expand(before=delta)
+        expected_start = self.ts1 - delta
+        self.assertEqual(expanded.start, expected_start)
+        self.assertEqual(expanded.end, self.ts2)
+
+    def test_expand_after(self):
+        """Test expanding interval after end"""
+        delta = dTS("1d")
+        expanded = self.interval1.expand(after=delta)
+        self.assertEqual(expanded.start, self.ts1)
+        expected_end = self.ts2 + delta
+        self.assertEqual(expanded.end, expected_end)
+
+    def test_expand_both(self):
+        """Test expanding interval on both ends"""
+        before_delta = dTS("6h")
+        after_delta = dTS("12h")
+        expanded = self.interval1.expand(before=before_delta, after=after_delta)
+        self.assertEqual(expanded.start, self.ts1 - before_delta)
+        self.assertEqual(expanded.end, self.ts2 + after_delta)
+
+    def test_expand_with_float(self):
+        """Test expand with float seconds"""
+        expanded = self.interval1.expand(before=3600, after=7200)
+        self.assertAlmostEqual(float(expanded.start), float(self.ts1) - 3600, places=6)
+        self.assertAlmostEqual(float(expanded.end), float(self.ts2) + 7200, places=6)
+
+    def test_shrink_from_start(self):
+        """Test shrinking from start"""
+        delta = dTS("6h")
+        shrunk = self.interval1.shrink(from_start=delta)
+        expected_start = self.ts1 + delta
+        self.assertEqual(shrunk.start, expected_start)
+        self.assertEqual(shrunk.end, self.ts2)
+
+    def test_shrink_from_end(self):
+        """Test shrinking from end"""
+        delta = dTS("6h")
+        shrunk = self.interval1.shrink(from_end=delta)
+        self.assertEqual(shrunk.start, self.ts1)
+        expected_end = self.ts2 - delta
+        self.assertEqual(shrunk.end, expected_end)
+
+    def test_shrink_from_both(self):
+        """Test shrinking from both ends"""
+        from_start = dTS("3h")
+        from_end = dTS("9h")
+        shrunk = self.interval1.shrink(from_start=from_start, from_end=from_end)
+        self.assertEqual(shrunk.start, self.ts1 + from_start)
+        self.assertEqual(shrunk.end, self.ts2 - from_end)
+
+    def test_shrink_with_float(self):
+        """Test shrink with float seconds"""
+        shrunk = self.interval1.shrink(from_start=3600, from_end=3600)
+        self.assertAlmostEqual(float(shrunk.start), float(self.ts1) + 3600, places=6)
+        self.assertAlmostEqual(float(shrunk.end), float(self.ts2) - 3600, places=6)
+
+    def test_shrink_invalid_result(self):
+        """Test that shrinking too much raises ValueError"""
+        # Shrink by 1.5 days from a 1-day interval
+        with self.assertRaises(ValueError):
+            self.interval1.shrink(from_start=dTS("1.5d"))
+
+    def test_split_at_start(self):
+        """Test splitting at start boundary raises error"""
+        # Splitting at the exact start point should raise because it creates an
+        # invalid interval with start == end
+        with self.assertRaises(ValueError):
+            self.interval1.split(self.ts1)
+
+    def test_split_at_midpoint(self):
+        """Test splitting at midpoint"""
+        midpoint_ts = TS((float(self.ts1) + float(self.ts2)) / 2)
+        before, after = self.interval1.split(midpoint_ts)
+        self.assertEqual(before.start, self.ts1)
+        self.assertEqual(before.end, midpoint_ts)
+        self.assertEqual(after.start, midpoint_ts)
+        self.assertEqual(after.end, self.ts2)
+
+    def test_split_outside_interval(self):
+        """Test splitting outside interval raises ValueError"""
+        with self.assertRaises(ValueError):
+            self.interval1.split(self.ts3)
+
+    def test_gap_to_separated(self):
+        """Test gap calculation for separated intervals"""
+        interval_sep = TSInterval(TS(float(self.ts2) + 3600), self.ts3)
+        gap = self.interval1.gap_to(interval_sep)
+        self.assertEqual(gap, 3600.0)
+
+    def test_gap_to_touching(self):
+        """Test gap calculation for touching intervals"""
+        gap = self.interval1.gap_to(self.interval2)
+        self.assertEqual(gap, 0.0)
+
+    def test_gap_to_overlapping(self):
+        """Test gap calculation for overlapping intervals"""
+        overlap_interval = TSInterval(
+            TS(float(self.ts1) + 43200),  # Half way through interval1
+            self.ts3
+        )
+        gap = self.interval1.gap_to(overlap_interval)
+        # Overlap is 43200 seconds (half day)
+        self.assertEqual(gap, -43200.0)
+
+    def test_gap_to_reverse(self):
+        """Test gap calculation in reverse (other before this)"""
+        separated = TSInterval(self.ts1 - 7200, self.ts1 - 3600)
+        gap = separated.gap_to(self.interval1)
+        self.assertEqual(gap, 3600.0)
+
+    def test_is_before(self):
+        """Test is_before method"""
+        self.assertTrue(self.interval1.is_before(self.interval2))
+        self.assertFalse(self.interval2.is_before(self.interval1))
+        self.assertFalse(self.interval1.is_before(self.interval1))
+
+    def test_is_after(self):
+        """Test is_after method"""
+        self.assertTrue(self.interval2.is_after(self.interval1))
+        self.assertFalse(self.interval1.is_after(self.interval2))
+        self.assertFalse(self.interval1.is_after(self.interval1))
+
+    def test_is_adjacent_to_true(self):
+        """Test is_adjacent_to when intervals are adjacent"""
+        self.assertTrue(self.interval1.is_adjacent_to(self.interval2))
+        self.assertTrue(self.interval2.is_adjacent_to(self.interval1))
+
+    def test_is_adjacent_to_false(self):
+        """Test is_adjacent_to when intervals are not adjacent"""
+        far_interval = TSInterval(self.ts3, self.ts4)
+        self.assertFalse(self.interval1.is_adjacent_to(far_interval))
+
+    def test_equality_same(self):
+        """Test equality with same intervals"""
+        interval_dup = TSInterval(self.ts1, self.ts2)
+        self.assertEqual(self.interval1, interval_dup)
+
+    def test_equality_different(self):
+        """Test inequality with different intervals"""
+        self.assertNotEqual(self.interval1, self.interval2)
+
+    def test_equality_with_non_interval(self):
+        """Test inequality with non-TSInterval objects"""
+        self.assertNotEqual(self.interval1, "not an interval")
+        self.assertNotEqual(self.interval1, None)
+
+    def test_less_than(self):
+        """Test less than comparison"""
+        self.assertTrue(self.interval1 < self.interval2)
+        self.assertFalse(self.interval2 < self.interval1)
+
+    def test_less_than_same_start_different_end(self):
+        """Test less than with same start, different end"""
+        interval_short = TSInterval(self.ts1, TS(float(self.ts2) - 3600))
+        self.assertTrue(interval_short < self.interval1)
+
+    def test_ordering_operators(self):
+        """Test all ordering operators (from @total_ordering)"""
+        self.assertTrue(self.interval1 <= self.interval2)
+        self.assertTrue(self.interval2 >= self.interval1)
+        self.assertTrue(self.interval2 > self.interval1)
+        self.assertFalse(self.interval1 > self.interval2)
+
+    def test_hash(self):
+        """Test hash for use in sets and dicts"""
+        interval_dup = TSInterval(self.ts1, self.ts2)
+        # Same intervals should have same hash
+        self.assertEqual(hash(self.interval1), hash(interval_dup))
+
+        # Can be used in sets
+        interval_set = {self.interval1, interval_dup, self.interval2}
+        self.assertEqual(len(interval_set), 2)
+
+    def test_repr(self):
+        """Test string representation"""
+        repr_str = repr(self.interval1)
+        self.assertIn("TSInterval", repr_str)
+        self.assertIn(self.ts1.as_iso, repr_str)
+        self.assertIn(self.ts2.as_iso, repr_str)
+
+    def test_str(self):
+        """Test string conversion"""
+        str_repr = str(self.interval1)
+        self.assertEqual(str_repr, self.interval1.as_iso)
+
+    def test_complex_scenario_chain_operations(self):
+        """Test complex scenario with chained operations"""
+        # Start with interval1
+        # Expand it
+        expanded = self.interval1.expand(before=dTS("1d"), after=dTS("1d"))
+        # Compare the durations in seconds (using _delta_ns)
+        self.assertGreater(expanded.duration._delta_ns, self.interval1.duration._delta_ns)
+
+        # Shift it
+        shifted = expanded.shift(dTS("2d"))
+
+        # Check that it moved forward by 2 days
+        self.assertAlmostEqual(
+            float(shifted.start),
+            float(expanded.start) + 86400 * 2,
+            places=6
+        )
+
+    def test_multiple_intervals_operations(self):
+        """Test operations with multiple intervals"""
+        intervals = [self.interval1, self.interval2]
+
+        # Find overlapping intervals
+        test_interval = TSInterval(
+            TS(float(self.ts1) + 43200),  # Halfway through interval1
+            TS(float(self.ts2) + 43200)   # Halfway through interval2
+        )
+
+        overlapping = [i for i in intervals if i.overlaps(test_interval)]
+        self.assertEqual(len(overlapping), 2)
+
+    def test_interval_with_very_small_duration(self):
+        """Test interval with very small duration"""
+        start = TS(1000.0)
+        end = TS(1000.001)
+        small_interval = TSInterval(start, end)
+        # Verify the duration is approximately 0.001 seconds
+        self.assertEqual(small_interval.duration.as_msec(), 1)
+
+    def test_interval_with_large_duration(self):
+        """Test interval with very large duration (years)"""
+        start = TS("2000-01-01T00:00:00Z")
+        end = TS("2020-01-01T00:00:00Z")
+        large_interval = TSInterval(start, end)
+        # 20 years = approx 7305 days worth of nanoseconds
+        expected_ns = 7000 * 86400 * 1_000_000_000
+        self.assertGreater(large_interval.duration.as_nsec(), expected_ns)
+
+
+class TestDTS(TestCase):
+    def test_conversion_helpers_return_ints(self):
+        delta = dTS("1500000ns")
+        self.assertEqual(delta.as_nsec(), 1_500_000)
+        self.assertEqual(delta.as_usec(), 1_500)
+        self.assertEqual(delta.as_msec(), 2)
+        self.assertEqual(delta.as_sec(), 0)
+
+    def test_rounding_behavior(self):
+        delta = dTS("900000ns")
+        self.assertEqual(delta.as_nsec(), 900_000)
+        self.assertEqual(delta.as_usec(), 900)
+        self.assertEqual(delta.as_msec(), 1)
+        self.assertEqual(delta.as_sec(), 0)
+
+    def test_second_rounding_up(self):
+        delta = dTS("1500000000ns")
+        self.assertEqual(delta.as_nsec(), 1_500_000_000)
+        self.assertEqual(delta.as_usec(), 1_500_000)
+        self.assertEqual(delta.as_msec(), 1_500)
+        self.assertEqual(delta.as_sec(), 2)
 
 
 if __name__ == "__main__":
