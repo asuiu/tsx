@@ -546,8 +546,15 @@ class TestBaseTS(TestCase):
         ts = TS.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 789, 999)
         self.assertEqual(ts, TS("2022-12-07T01:02:03.456790Z"))  # we don't have enough float precision to represent nanos
 
+        ts = iTSns.from_parts(2022, 12, 7, 1, 2, 3, 456, 789, 999, tzinfo="Europe/Berlin")
+        self.assertEqual(ts, iTSns("2022-12-07T00:02:03.456789999Z"))  # we don't have enough float precision to represent nanos
+        self.assertEqual(ts.iso_tz("Europe/Bucharest"), "2022-12-07T00:02:03.456790+02:00")  # we don't have enough float precision to represent nanos
+
+        ts = iTSms.from_parts(2022, 6, 7, 1, 2, 3, 456, 789, 999, tzinfo="Europe/Bucharest")
+        self.assertEqual(ts, iTSms("2022-06-06T22:02:03.456Z"))
+
         ts = TS.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 789, 123)
-        self.assertEqual(ts, TS("2022-12-07T01:02:03.456789Z"))  # we don't have enough float precision to represent nanos
+        self.assertEqual(ts, TS("2022-12-07T01:02:03.456789999Z"))  # we don't have enough float precision to represent nanos
 
         ts = TSMsec.from_parts_utc(2022, 12, 7, 1, 2, 3, 456, 789, 123)
         self.assertEqual(ts, TSMsec("2022-12-07T01:02:03.456789Z"))  # we don't have enough float precision to represent nanos
@@ -2159,6 +2166,27 @@ class TestTSInterval(TestCase):
         # 20 years = approx 7305 days worth of nanoseconds
         expected_ns = 7000 * 86400 * 1_000_000_000
         self.assertGreater(large_interval.duration.as_nsec(), expected_ns)
+
+    def test_from_year_default_timezone(self):
+        interval = TSInterval.from_year(2024)
+        self.assertEqual(interval.start.isoformat(), "2024-01-01T00:00:00Z")
+        self.assertEqual(interval.end.isoformat(), "2025-01-01T00:00:00Z")
+        self.assertEqual(interval.duration.as_sec(), 366 * 86400)
+
+    def test_from_year_with_timezone_name(self):
+        tz_name = "Europe/Bucharest"
+        interval = TSInterval.from_year(2023, tz=tz_name)
+        tz_obj = pytz.timezone(tz_name)
+        self.assertEqual(interval.start.as_dt(tz=tz_obj).isoformat(), "2023-01-01T00:00:00+02:00")
+        self.assertEqual(interval.end.as_dt(tz=tz_obj).isoformat(), "2024-01-01T00:00:00+02:00")
+        self.assertLess(interval.start, interval.end)
+
+    def test_from_year_with_tzinfo(self):
+        custom_tz = timezone(timedelta(hours=-5))
+        interval = TSInterval.from_year(2025, tz=custom_tz)
+        self.assertEqual(interval.start.as_dt(tz=custom_tz).isoformat(), "2025-01-01T00:00:00-05:00")
+        self.assertEqual(interval.end.as_dt(tz=custom_tz).isoformat(), "2026-01-01T00:00:00-05:00")
+        self.assertEqual(interval.duration.as_sec(), 365 * 86400)
 
 
 class TestDTS(TestCase):
