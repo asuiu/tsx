@@ -1502,4 +1502,3 @@ class iTSns(iBaseTS):
         zulu_designator = "Z" if use_zulu else ""
         dt = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds)
         return dt.strftime(f"%Y%m%d{sep}%H%M%S.{ns:09d}{zulu_designator}")
-

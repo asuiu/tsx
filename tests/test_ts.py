@@ -732,6 +732,9 @@ class Test_iTS(TestCase):
         res = ts.iso_tz("Europe/Bucharest")
         self.assertEqual(res, "2018-03-01T02:00:00+02:00")
 
+        res = iTSns("2018-06-01T00:00:00.123456789Z").iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-06-01T03:00:00.123457+03:00")
+
     def test_as_iso_tz_DST(self):
         ts = iTS("2020-06-01T10:00:00Z")
         res = ts.iso_tz(pytz.timezone("Europe/Bucharest"))
@@ -1010,6 +1013,9 @@ class Test_iTSms(TestCase):
         res = ts.iso_tz("Europe/Bucharest")
         self.assertEqual(res, "2018-03-01T02:00:00+02:00")
 
+        res = iTSns("2018-06-01T00:00:00.123456789Z").iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-06-01T03:00:00.123457+03:00")
+
     def test_pydantic_validator(self):
         class TestModel(BaseModel):
             ts: iTSms
@@ -1072,6 +1078,9 @@ class Test_iTSus(TestCase):
         self.assertEqual(dt_utc.timestamp(), dt_buc.timestamp())
         self.assertEqual(dt_utc.isoformat(), "2018-03-01T00:00:00.123456+00:00")
         self.assertEqual(dt_buc.isoformat(), "2018-03-01T02:00:00.123456+02:00")
+
+        res = iTSns("2018-06-01T00:00:00.123456789Z").iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-06-01T03:00:00.123457+03:00")
 
     def test_as_iso_tz_standard(self):
         ts = iTSus("2018-03-01T00:00:00.123456Z")
@@ -1201,6 +1210,9 @@ class Test_iTSns(TestCase):
         self.assertEqual(res, "2018-03-01T02:00:00.123457+02:00")
         res = ts.iso_tz("Europe/Bucharest")
         self.assertEqual(res, "2018-03-01T02:00:00.123457+02:00")
+
+        res = iTSns("2018-06-01T00:00:00.123456789Z").iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-06-01T03:00:00.123457+03:00")
 
     def test_regression_itsns_constructor_vs_from_iso(self):
         """Test that iTSns() and iTSns.from_iso() produce the same result"""

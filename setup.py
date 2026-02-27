@@ -6,7 +6,7 @@ from setuptools import setup
 __author__ = 'ASU'
 
 # Bump up this version
-VERSION = '0.2.17'
+VERSION = '0.2.18'
 
 basedir = path.abspath(path.dirname(__file__))
 
@@ -27,7 +27,7 @@ parameters = dict(
     # https://packaging.python.org/en/latest/single_source_version.html
     version=VERSION,
 
-    description='TimeStam eXtensions for Python',
+    description='TimeStamp eXtensions for Python',
     long_description=long_description,
     long_description_content_type="text/markdown",
 
