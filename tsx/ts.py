@@ -1323,6 +1323,16 @@ class iTSms(iBaseTS):
         """
         return "milliseconds"
 
+    def iso_basic(self, sep="-", use_zulu: bool = True) -> str:
+        """
+        Returns Basic ISO date format with millisecond precision, like: 20210101-000000.123Z
+        When (sep='T', use_zulu=False) produces: 20210101T131121.098
+        """
+        seconds, ms = divmod(self, 1_000)
+        zulu_designator = "Z" if use_zulu else ""
+        dt = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds)
+        return dt.strftime(f"%Y%m%d{sep}%H%M%S.{ms:03d}{zulu_designator}")
+
 
 class iTSus(iBaseTS):
     """
@@ -1380,6 +1390,16 @@ class iTSus(iBaseTS):
             tz = pytz.timezone(tz)
         assert isinstance(tz, dt_tzinfo)
         return utc_dt.astimezone(tz)
+
+    def iso_basic(self, sep="-", use_zulu: bool = True) -> str:
+        """
+        Returns Basic ISO date format with microsecond precision, like: 20210101-000000.123456Z
+        When (sep='T', use_zulu=False) produces: 20210101T131121.098321
+        """
+        seconds, us = divmod(self, 1_000_000)
+        zulu_designator = "Z" if use_zulu else ""
+        dt = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds)
+        return dt.strftime(f"%Y%m%d{sep}%H%M%S.{us:06d}{zulu_designator}")
 
 
 class iTSns(iBaseTS):
