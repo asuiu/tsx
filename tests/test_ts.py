@@ -927,6 +927,14 @@ class Test_iTSms(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSms)
 
+    def test_regression_iso_basic_precision(self):
+        its = iTSms("2025-10-07T13:11:21.098Z")
+        self.assertEqual("2025-10-07T13:11:21.098Z", its.isoformat())
+        self.assertEqual("20251007T131121.098Z", its.iso_basic(sep="T"))
+        self.assertEqual("20251007T131121.098", its.iso_basic(sep="T", use_zulu=False))
+        self.assertEqual("20251007-131121.098Z", its.iso_basic())
+        self.assertEqual("20251007-131121.098", its.iso_basic(use_zulu=False))
+
     def test_error_message_regression(self):
         a = "invalid-timestamp"
         with self.assertRaises(ValueError) as e:
@@ -1055,6 +1063,14 @@ class Test_iTSms(TestCase):
 class Test_iTSus(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSus)
+
+    def test_regression_iso_basic_precision(self):
+        its = iTSus("2025-10-07T13:11:21.098321Z")
+        self.assertEqual("2025-10-07T13:11:21.098321Z", its.isoformat())
+        self.assertEqual("20251007T131121.098321Z", its.iso_basic(sep="T"))
+        self.assertEqual("20251007T131121.098321", its.iso_basic(sep="T", use_zulu=False))
+        self.assertEqual("20251007-131121.098321Z", its.iso_basic())
+        self.assertEqual("20251007-131121.098321", its.iso_basic(use_zulu=False))
 
     def test_itsus_ms_regression(self):
         """ ensures that when the ts has ms precision, we don't add float imprecision/add extra digits when converting to ns """
