@@ -548,7 +548,7 @@ class TestBaseTS(TestCase):
 
         ts = iTSns.from_parts(2022, 12, 7, 1, 2, 3, 456, 789, 999, tzinfo="Europe/Berlin")
         self.assertEqual(ts, iTSns("2022-12-07T00:02:03.456789999Z"))  # we don't have enough float precision to represent nanos
-        self.assertEqual(ts.iso_tz("Europe/Bucharest"), "2022-12-07T00:02:03.456790+02:00")  # we don't have enough float precision to represent nanos
+        self.assertEqual(ts.iso_tz("Europe/Bucharest"), "2022-12-07T02:02:03.456790+02:00")  # we don't have enough float precision to represent nanos
 
         ts = iTSms.from_parts(2022, 6, 7, 1, 2, 3, 456, 789, 999, tzinfo="Europe/Bucharest")
         self.assertEqual(ts, iTSms("2022-06-06T22:02:03.456Z"))
@@ -731,6 +731,9 @@ class Test_iTS(TestCase):
         self.assertEqual("2018-03-01T02:00:00+02:00", res)
         res = ts.iso_tz("Europe/Bucharest")
         self.assertEqual(res, "2018-03-01T02:00:00+02:00")
+
+        res = iTSns("2018-06-01T00:00:00.123456789Z").iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-06-01T03:00:00.123457+03:00")
 
     def test_as_iso_tz_DST(self):
         ts = iTS("2020-06-01T10:00:00Z")
@@ -1011,6 +1014,16 @@ class Test_iTSms(TestCase):
         ts = iTSms(ts=TestTS.INT_BASE_MS_TS)
         self.assertEqual(TestTS.STR_MSEC_TS, str(ts))
 
+    def test_as_iso_tz_standard(self):
+        ts = iTSms("2018-03-01T00:00:00Z")
+        res = ts.iso_tz(pytz.timezone("Europe/Bucharest"))
+        self.assertEqual(res, "2018-03-01T02:00:00+02:00")
+        res = ts.iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-03-01T02:00:00+02:00")
+
+        res = iTSns("2018-06-01T00:00:00.123456789Z").iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-06-01T03:00:00.123457+03:00")
+
     def test_pydantic_validator(self):
         class TestModel(BaseModel):
             ts: iTSms
@@ -1063,6 +1076,26 @@ class Test_iTSms(TestCase):
 class Test_iTSus(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSus)
+
+    def test_as_dt_tz_conversion_preserves_instant_regression(self):
+        ts = iTSus("2018-03-01T00:00:00.123456Z")
+        dt_utc = ts.as_dt(timezone.utc)
+        dt_buc = ts.as_dt("Europe/Bucharest")
+
+        # Same instant, different timezone representation.
+        self.assertEqual(dt_utc.timestamp(), dt_buc.timestamp())
+        self.assertEqual(dt_utc.isoformat(), "2018-03-01T00:00:00.123456+00:00")
+        self.assertEqual(dt_buc.isoformat(), "2018-03-01T02:00:00.123456+02:00")
+
+        res = iTSns("2018-06-01T00:00:00.123456789Z").iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-06-01T03:00:00.123457+03:00")
+
+    def test_as_iso_tz_standard(self):
+        ts = iTSus("2018-03-01T00:00:00.123456Z")
+        res = ts.iso_tz(pytz.timezone("Europe/Bucharest"))
+        self.assertEqual(res, "2018-03-01T02:00:00.123456+02:00")
+        res = ts.iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-03-01T02:00:00.123456+02:00")
 
     def test_regression_iso_basic_precision(self):
         its = iTSus("2025-10-07T13:11:21.098321Z")
@@ -1177,6 +1210,17 @@ class Test_iTSus(TestCase):
 class Test_iTSns(TestCase):
     def test_from_iso(self):
         run_test_from_iso(self, iTSns)
+
+    def test_as_iso_tz_standard(self):
+        ts = iTSns("2018-03-01T00:00:00.123456789Z")
+        # as_dt() is microsecond-based for iTSns via as_usec(), so TZ conversion rounds to microseconds.
+        res = ts.iso_tz(pytz.timezone("Europe/Bucharest"))
+        self.assertEqual(res, "2018-03-01T02:00:00.123457+02:00")
+        res = ts.iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-03-01T02:00:00.123457+02:00")
+
+        res = iTSns("2018-06-01T00:00:00.123456789Z").iso_tz("Europe/Bucharest")
+        self.assertEqual(res, "2018-06-01T03:00:00.123457+03:00")
 
     def test_regression_itsns_constructor_vs_from_iso(self):
         """Test that iTSns() and iTSns.from_iso() produce the same result"""

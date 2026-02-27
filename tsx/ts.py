@@ -227,7 +227,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
 
     @classmethod
     def from_parts(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0,
-                   tzinfo: Union[str, dt_tzinfo] = timezone.utc) -> Self:
+                   tzinfo: dt_tzinfo | str = timezone.utc) -> Self:
         total_us = ms * 1000 + us
         if isinstance(tzinfo, str):
             tzinfo = pytz.timezone(tzinfo)
@@ -380,7 +380,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
         """
         raise NotImplementedError()
 
-    def as_dt(self, tz: Union[dt_tzinfo, str] = timezone.utc) -> datetime:
+    def as_dt(self, tz: dt_tzinfo | str = timezone.utc) -> datetime:
         """
         Returns an "aware" datetime object in UTC by default
         """
@@ -388,10 +388,9 @@ class BaseTS(ABC, metaclass=ABCMeta):
         try:
             if isinstance(tz, str):
                 tz = pytz.timezone(tz)
-                naive_dt = datetime.fromtimestamp(int(self))
-                dt = tz.localize(naive_dt)
-            else:
-                dt = datetime.fromtimestamp(ts, tz=tz)
+            dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+            if tz != timezone.utc:
+                dt = dt.astimezone(tz)
             return dt
         except OSError:
             # can't convert due to overflow error, so we need to do it using other method
@@ -399,11 +398,13 @@ class BaseTS(ABC, metaclass=ABCMeta):
             days = ts // SECONDS_PER_DAY
             years = int(days / AVG_DAYS_PER_YEAR)  # Average considering leap years
             year = 1970 + years
-            year_date = datetime(year, 1, 1, tzinfo=tz)
-            td_to_year_beginning = year_date - datetime(1970, 1, 1, tzinfo=tz)
+            year_date = datetime(year, 1, 1, tzinfo=timezone.utc)
+            td_to_year_beginning = year_date - datetime(1970, 1, 1, tzinfo=timezone.utc)
             year_remaining_sec = ts - td_to_year_beginning.total_seconds()
             td = timedelta(seconds=year_remaining_sec)
             res = year_date + td
+            if tz != timezone.utc:
+                res = res.astimezone(tz)
             return res
 
     def as_local_dt(self) -> datetime:
@@ -466,7 +467,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
         """
         return self.iso_date(sep="", use_zulu=use_zulu)
 
-    def iso_tz(self, tz: Union[str, dt_tzinfo]) -> str:
+    def iso_tz(self, tz: dt_tzinfo | str) -> str:
         """
         Returns ISO date format with TZ info.
         Example: 2021-01-01
@@ -660,7 +661,7 @@ class TS(BaseTS, float):
         s = self.as_dt().strftime("%Y%m%d")
         return s
 
-    def as_iso_tz(self, tz: Union[str, dt_tzinfo]) -> str:
+    def as_iso_tz(self, tz: dt_tzinfo | str) -> str:
         if isinstance(tz, str):
             tz = pytz.timezone(tz)
         dt = self.as_dt(tz=tz)
@@ -842,7 +843,7 @@ class TSInterval:
         object.__setattr__(self, name, value)
 
     @classmethod
-    def from_year(cls, year: int, tz: Union[str, dt_tzinfo] = timezone.utc, dtype:Optional[Type[BaseTS]]=None) -> "TSInterval":
+    def from_year(cls, year: int, tz: dt_tzinfo | str = timezone.utc, dtype:Optional[Type[BaseTS]]=None) -> "TSInterval":
         """
         Create an interval covering the full calendar year in the requested timezone (defaults to UTC).
         """
@@ -1107,7 +1108,7 @@ class iBaseTS(BaseTS, int):
     @override
     @classmethod
     def from_parts(cls, y: int, m: int = 1, d: int = 1, hh: int = 0, mm: int = 0, ss: int = 0, ms: int = 0, us: int = 0, ns: int = 0,
-                   tzinfo: Union[str, dt_tzinfo] = timezone.utc) -> Self:
+                   tzinfo: dt_tzinfo | str = timezone.utc) -> Self:
         if isinstance(tzinfo, str):
             tzinfo = pytz.timezone(tzinfo)
             naive_dt = datetime(y, m, d, hh, mm, ss, 0)
@@ -1256,16 +1257,16 @@ class iTS(iBaseTS):
         """
         return "seconds"
 
-    def as_dt(self, tz: Union[str, dt_tzinfo] = timezone.utc) -> datetime:
+    def as_dt(self, tz: dt_tzinfo | str = timezone.utc) -> datetime:
         """
         Returns an "aware" datetime object in UTC by default
         """
         if isinstance(tz, str):
             tz = pytz.timezone(tz)
-            naive_dt = datetime.fromtimestamp(int(self))
-            return tz.localize(naive_dt)
         assert isinstance(tz, dt_tzinfo)
-        utc_dt = datetime.fromtimestamp(int(self), tz=tz)
+        utc_dt = datetime.fromtimestamp(int(self), tz=timezone.utc)
+        if tz != timezone.utc:
+            utc_dt = utc_dt.astimezone(tz)
         return utc_dt
 
 
@@ -1306,12 +1307,16 @@ class iTSms(iBaseTS):
     def as_msec(self) -> "iTSms":
         return self
 
-    def as_dt(self, tz: dt_tzinfo = timezone.utc) -> datetime:
+    def as_dt(self, tz: dt_tzinfo | str = timezone.utc) -> datetime:
         """
         Returns an "aware" datetime object in UTC by default
         """
         seconds, ms = divmod(self, 1000)
-        return datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds, milliseconds=ms)
+        utc_dt = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds, milliseconds=ms)
+        if isinstance(tz, str):
+            tz = pytz.timezone(tz)
+        assert isinstance(tz, dt_tzinfo)
+        return utc_dt.astimezone(tz)
 
     def _get_auto_timespec(self) -> str:
         """
@@ -1376,19 +1381,16 @@ class iTSus(iBaseTS):
         """
         return "microseconds"
 
-    def as_dt(self, tz: Union[str, dt_tzinfo] = timezone.utc) -> datetime:
+    def as_dt(self, tz: dt_tzinfo | str = timezone.utc) -> datetime:
         """
         Returns an "aware" datetime object in UTC by default
         """
         seconds, us = divmod(self, 1_000_000)
+        utc_dt = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds, microseconds=us)
         if isinstance(tz, str):
             tz = pytz.timezone(tz)
-            naive_dt = EPOCH_DT + timedelta(seconds=seconds, microseconds=us)
-            dt = tz.localize(naive_dt)
-        else:
-            assert isinstance(tz, dt_tzinfo)
-            dt = datetime(1970, 1, 1, tzinfo=tz) + timedelta(seconds=seconds, microseconds=us)
-        return dt
+        assert isinstance(tz, dt_tzinfo)
+        return utc_dt.astimezone(tz)
 
     def iso_basic(self, sep="-", use_zulu: bool = True) -> str:
         """
@@ -1505,7 +1507,7 @@ class iTSns(iBaseTS):
             us += 1
         return iTSus(us)
 
-    def as_dt(self, tz: Union[str, dt_tzinfo] = timezone.utc) -> datetime:
+    def as_dt(self, tz: dt_tzinfo | str = timezone.utc) -> datetime:
         """
         Returns an "aware" datetime object in UTC by default;
         Since the datetime object has a microsecond resolution, we'll convert to iTSus and return it
