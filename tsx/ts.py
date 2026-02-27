@@ -388,10 +388,9 @@ class BaseTS(ABC, metaclass=ABCMeta):
         try:
             if isinstance(tz, str):
                 tz = pytz.timezone(tz)
-                naive_dt = datetime.fromtimestamp(int(self))
-                dt = tz.localize(naive_dt)
-            else:
-                dt = datetime.fromtimestamp(ts, tz=tz)
+            dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+            if tz != timezone.utc:
+                dt = dt.astimezone(tz)
             return dt
         except OSError:
             # can't convert due to overflow error, so we need to do it using other method
@@ -399,11 +398,13 @@ class BaseTS(ABC, metaclass=ABCMeta):
             days = ts // SECONDS_PER_DAY
             years = int(days / AVG_DAYS_PER_YEAR)  # Average considering leap years
             year = 1970 + years
-            year_date = datetime(year, 1, 1, tzinfo=tz)
-            td_to_year_beginning = year_date - datetime(1970, 1, 1, tzinfo=tz)
+            year_date = datetime(year, 1, 1, tzinfo=timezone.utc)
+            td_to_year_beginning = year_date - datetime(1970, 1, 1, tzinfo=timezone.utc)
             year_remaining_sec = ts - td_to_year_beginning.total_seconds()
             td = timedelta(seconds=year_remaining_sec)
             res = year_date + td
+            if tz != timezone.utc:
+                res = res.astimezone(tz)
             return res
 
     def as_local_dt(self) -> datetime:
@@ -1262,10 +1263,10 @@ class iTS(iBaseTS):
         """
         if isinstance(tz, str):
             tz = pytz.timezone(tz)
-            naive_dt = datetime.fromtimestamp(int(self))
-            return tz.localize(naive_dt)
         assert isinstance(tz, dt_tzinfo)
-        utc_dt = datetime.fromtimestamp(int(self), tz=tz)
+        utc_dt = datetime.fromtimestamp(int(self), tz=timezone.utc)
+        if tz != timezone.utc:
+            utc_dt = utc_dt.astimezone(tz)
         return utc_dt
 
 
