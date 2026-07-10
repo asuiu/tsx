@@ -5,7 +5,7 @@ import heapq
 import time
 from collections.abc import Callable
 
-from .ts import TS, dTS, iBaseTS, iTS, iTSms, iTSns, iTSus
+from .ts import dTS, iBaseTS, iTS, iTSms, iTSns, iTSus
 
 
 class iTSBaseProvider:
@@ -63,12 +63,7 @@ class iTSnsProvider(iTSBaseProvider):
         return iTSns.now()
 
 
-class _MockProviderBase:
-    @staticmethod
-    def _raise_if_negative(duration: int | float, name: str) -> None:
-        if duration < 0:
-            raise ValueError(f"{name} must not be negative")
-
+class iTSBaseProviderMock(iTSBaseProvider):
     @staticmethod
     def _raise_if_non_positive(duration: int | float, name: str) -> None:
         if duration <= 0:
@@ -79,16 +74,14 @@ class _MockProviderBase:
         return iTSns(delta._add(int(start_ns)))
 
     @staticmethod
-    def __to_ns(ts: TS | iBaseTS | int | None) -> iTSns:
+    def __to_ns(ts: iBaseTS | int | None) -> iTSns:
         if ts is None:
             return iTSns(0)
-        if isinstance(ts, TS):
-            return ts.as_nsec()
         if isinstance(ts, iBaseTS):
             return ts.as_nsec()
         return iTSns(ts)
 
-    def __init__(self, ts: TS | iBaseTS | int | None = None) -> None:
+    def __init__(self, ts: iBaseTS | int | None = None) -> None:
         self._now_ns = self.__to_ns(ts)
         self._sequence = 0
         self._operations: list[tuple[int, int, Callable[[], None]]] = []
@@ -163,26 +156,21 @@ class _MockProviderBase:
         self._now_ns = target_ns
 
 
-class MockTSProvider(_MockProviderBase):
-    def now(self) -> TS:
-        return TS(self._now_ns, prec="ns")
-
-
-class MockiTSProvider(_MockProviderBase):
+class iTSProviderMock(iTSBaseProviderMock, iTSProvider):
     def now(self) -> iTS:
         return iTS(self._now_ns)
 
 
-class MockiTSmsProvider(_MockProviderBase):
+class iTSmsProviderMock(iTSBaseProviderMock, iTSmsProvider):
     def now(self) -> iTSms:
         return iTSms(self._now_ns)
 
 
-class MockiTSusProvider(_MockProviderBase):
+class iTSusProviderMock(iTSBaseProviderMock, iTSusProvider):
     def now(self) -> iTSus:
         return iTSus(self._now_ns)
 
 
-class MockiTSnsProvider(_MockProviderBase):
+class iTSnsProviderMock(iTSBaseProviderMock, iTSnsProvider):
     def now(self) -> iTSns:
         return self._now_ns

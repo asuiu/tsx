@@ -2,10 +2,11 @@ import unittest
 from unittest.mock import patch
 
 from tsx import (
-    MockTSProvider,
-    MockiTSmsProvider,
-    MockiTSnsProvider,
-    TS,
+    iTSBaseProviderMock,
+    iTSmsProviderMock,
+    iTSnsProviderMock,
+    iTSProviderMock,
+    iTSusProviderMock,
     iTSBaseProvider,
     iTS,
     iTSProvider,
@@ -83,10 +84,24 @@ class TestiTSBaseProvider(unittest.TestCase):
         sleep.assert_called_once_with(expected_sleep_seconds)
 
 
-class TestMockTSProvider(unittest.TestCase):
+class TestiTSBaseProviderMock(unittest.TestCase):
+    def test_mock_base_provider_matches_provider_hierarchy(self):
+        with self.assertRaises(NotImplementedError):
+            iTSBaseProviderMock().now()
+
+        self.assertTrue(issubclass(iTSBaseProviderMock, iTSBaseProvider))
+        self.assertTrue(issubclass(iTSProviderMock, iTSBaseProviderMock))
+        self.assertTrue(issubclass(iTSmsProviderMock, iTSBaseProviderMock))
+        self.assertTrue(issubclass(iTSusProviderMock, iTSBaseProviderMock))
+        self.assertTrue(issubclass(iTSnsProviderMock, iTSBaseProviderMock))
+        self.assertTrue(issubclass(iTSProviderMock, iTSProvider))
+        self.assertTrue(issubclass(iTSmsProviderMock, iTSmsProvider))
+        self.assertTrue(issubclass(iTSusProviderMock, iTSusProvider))
+        self.assertTrue(issubclass(iTSnsProviderMock, iTSnsProvider))
+
     def test_instances_have_independent_state(self):
-        first = MockiTSmsProvider(iTSms(1000))
-        second = MockiTSmsProvider(iTSms(2000))
+        first = iTSmsProviderMock(iTSms(1000))
+        second = iTSmsProviderMock(iTSms(2000))
 
         first.advance_ms(500)
 
@@ -94,12 +109,12 @@ class TestMockTSProvider(unittest.TestCase):
         self.assertEqual(second.now(), iTSms(2000))
 
     def test_initial_timestamp_conversion(self):
-        self.assertEqual(MockTSProvider(1_500_000_000).now(), TS(1.5))
-        self.assertEqual(MockiTSmsProvider(1_500_000_000).now(), iTSms(1500))
-        self.assertEqual(MockiTSnsProvider(iTSms(1500)).now(), iTSns(1_500_000_000))
+        self.assertEqual(iTSProviderMock(1_500_000_000).now(), iTS(2))
+        self.assertEqual(iTSmsProviderMock(1_500_000_000).now(), iTSms(1500))
+        self.assertEqual(iTSnsProviderMock(iTSms(1500)).now(), iTSns(1_500_000_000))
 
     def test_set_ns_and_advance_methods(self):
-        clock = MockiTSnsProvider(1_000)
+        clock = iTSnsProviderMock(1_000)
 
         clock.set_ns(2_000)
         self.assertEqual(clock.now(), iTSns(2_000))
@@ -117,7 +132,7 @@ class TestMockTSProvider(unittest.TestCase):
         self.assertEqual(clock.now(), iTSns(1_503_004_001))
 
     def test_advance_delta_uses_calendar_duration_from_current_mock_time(self):
-        clock = MockiTSnsProvider(iTSns("2024-01-31T00:00:00Z"))
+        clock = iTSnsProviderMock(iTSns("2024-01-31T00:00:00Z"))
         expected = iTSns("2024-02-29T00:00:00Z")
 
         clock.advance(dTS(1, unit="M"))
@@ -125,7 +140,7 @@ class TestMockTSProvider(unittest.TestCase):
         self.assertEqual(clock.now(), expected)
 
     def test_backward_and_non_positive_advances_are_rejected(self):
-        clock = MockiTSnsProvider(100)
+        clock = iTSnsProviderMock(100)
 
         for advance_call in (
             lambda: clock.set_ns(99),
@@ -140,7 +155,7 @@ class TestMockTSProvider(unittest.TestCase):
                     advance_call()
 
     def test_sleep_methods_advance_mock_time(self):
-        clock = MockiTSnsProvider(1_000)
+        clock = iTSnsProviderMock(1_000)
 
         clock.sleep_ns(1)
         clock.sleep_us(2)
@@ -151,7 +166,7 @@ class TestMockTSProvider(unittest.TestCase):
         self.assertEqual(clock.now(), iTSns(1_007_003_001))
 
     def test_negative_mock_sleep_is_rejected_and_zero_is_noop(self):
-        clock = MockiTSnsProvider(1_000)
+        clock = iTSnsProviderMock(1_000)
 
         clock.sleep_ns(0)
         clock.sleep_us(0)
@@ -172,7 +187,7 @@ class TestMockTSProvider(unittest.TestCase):
                     sleep_call()
 
     def test_immediate_callback_executes_without_moving_time_backwards(self):
-        clock = MockiTSnsProvider(10)
+        clock = iTSnsProviderMock(10)
         calls = []
 
         clock.wait_and_execute_ns(5, lambda: calls.append(int(clock.now())))
@@ -181,7 +196,7 @@ class TestMockTSProvider(unittest.TestCase):
         self.assertEqual(clock.now(), iTSns(10))
 
     def test_delayed_callbacks_run_at_target_time_in_order(self):
-        clock = MockiTSnsProvider(0)
+        clock = iTSnsProviderMock(0)
         calls = []
 
         clock.wait_and_execute_ns(30, lambda: calls.append(("third", int(clock.now()))))
@@ -194,7 +209,7 @@ class TestMockTSProvider(unittest.TestCase):
         self.assertEqual(clock.now(), iTSns(30))
 
     def test_equal_target_callbacks_keep_insertion_order(self):
-        clock = MockiTSnsProvider(0)
+        clock = iTSnsProviderMock(0)
         calls = []
 
         clock.wait_and_execute_ns(10, lambda: calls.append("first"))
@@ -205,7 +220,7 @@ class TestMockTSProvider(unittest.TestCase):
         self.assertEqual(calls, ["first", "second"])
 
     def test_callbacks_scheduled_by_callbacks_are_executed_during_same_advance(self):
-        clock = MockiTSnsProvider(0)
+        clock = iTSnsProviderMock(0)
         calls = []
 
         def first():
@@ -219,7 +234,7 @@ class TestMockTSProvider(unittest.TestCase):
         self.assertEqual(clock.now(), iTSns(20))
 
     def test_callback_exception_propagates_and_leaves_time_at_operation_target(self):
-        clock = MockiTSnsProvider(0)
+        clock = iTSnsProviderMock(0)
 
         def fail():
             raise RuntimeError("boom")
