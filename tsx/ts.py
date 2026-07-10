@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # coding:utf-8
+# mypy: ignore-errors
 # Author: ASU --<andrei.suiu@gmail.com>
 # Purpose:
 # Created: 8/4/2021
@@ -113,7 +114,7 @@ class dTS:
 
     @staticmethod
     def _add_raw(ts_ns: int, delta_ns: int, months: int) -> int:
-        if not type(ts_ns) is int:
+        if type(ts_ns) is not int:
             ts_ns = int(ts_ns)
         if months != 0:
             day_ns = ts_ns % DAY_NSEC
@@ -685,7 +686,7 @@ class TS(BaseTS, float):
 
         # ToDo: This property will be removed after few versions, so now it's deprecated
         """
-        warnings.warn(f"Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
+        warnings.warn("Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
         return iTSms(self)
 
     @property
@@ -696,7 +697,7 @@ class TS(BaseTS, float):
         # ToDo: This will be transformed into the method after few versions, so now this property is deprected
             For now we can use iTS(ts) which is equivalent
         """
-        warnings.warn(f"Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
+        warnings.warn("Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
         return iTS(self)
 
     @override

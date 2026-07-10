@@ -1,7 +1,9 @@
 -r requirements.txt
+mypy
 
 numpy
 pre-commit
 pydantic>=2,<3
+ruff
 setuptools
 twine

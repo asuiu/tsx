@@ -1496,7 +1496,7 @@ class TestTimedeltaOps(TestCase):
                 # Test reverse addition
                 result_radd = td + base
                 self.assertIsInstance(result_radd, ts_class, f"Reverse addition result should be {ts_class.__name__}")
-                self.assertEqual(result_add, result_radd, f"Addition and reverse addition should be equal")
+                self.assertEqual(result_add, result_radd, "Addition and reverse addition should be equal")
 
                 # Test subtraction
                 result_sub = base - td
