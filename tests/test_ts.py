@@ -411,8 +411,7 @@ class TestTS(TestCase):
 
     def test_as_sec(self):
         ts = TS("2022-12-07T00:00:00.123456Z")
-        # ToDo: fix after we make as_sec - method
-        sec = ts.as_sec
+        sec = ts.as_sec()
         self.assertIsInstance(sec, iTS)
         self.assertEqual(sec, 1670371200)
 
@@ -494,6 +493,15 @@ class TestTS(TestCase):
 
 
 class TestBaseTS(TestCase):
+    def test_as_sec_is_a_method_for_every_timestamp_class(self):
+        timestamp_classes = (TS, TSMsec, iTS, iTSms, iTSus, iTSns)
+
+        for timestamp_class in timestamp_classes:
+            with self.subTest(timestamp_class=timestamp_class.__name__):
+                ts = timestamp_class("2022-12-07T00:00:00.123456Z")
+                self.assertTrue(callable(ts.as_sec))
+                self.assertEqual(ts.as_sec(), iTS("2022-12-07T00:00:00Z"))
+
     def test_hash(self):
         """
         The hash of all the timestamp classes should be the same for the same timestamp,

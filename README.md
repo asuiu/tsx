@@ -56,7 +56,7 @@ TS("2018-02-28T22:00:00.123+00:00")
 ```python
 ts = TS.now()
 
-ts.as_sec == 1234567890.123
+ts.as_sec() == 1234567890
 ts.as_ms == 1234567890123
 ts.as_file_date == '20090213'
 ts.as_file_ts == '20090213-233130'
@@ -216,7 +216,7 @@ The TS class, a subclass of float, represents Unix timestamps in seconds. It inc
 - **Example**:
   ```python
   ts = TS(1634294400.123456)
-  ts.as_sec == TS(1634294400.0) == 1634294400.0
+  ts.as_sec() == iTS(1634294400) == 1634294400
   ```
 
 #### as_ms

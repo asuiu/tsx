@@ -22,7 +22,7 @@ Use this section as a compact, lossless summary of the public API and semantics.
 - Formatting and conversion
   - x.isoformat(sep="T", timespec) → ISO string; TS supports standard timespec; iTSns defaults to nanoseconds with trailing Z
   - x.as_iso, x.as_iso_date, x.as_iso_date_basic, x.as_iso_tz(tzinfo|"Area/City"), x.as_iso_basic
-  - x.as_sec()->iTS; x.as_msec()->iTSms; x.as_usec()->iTSus; x.as_nsec()->iTSns (TS only). Deprecated properties exist for backward compat: TS.as_ms, TS.as_sec
+  - x.as_sec()->iTS; x.as_msec()->iTSms; x.as_usec()->iTSus; x.as_nsec()->iTSns (TS only). The deprecated TS.as_ms property exists for backward compatibility.
   - x.as_dt(tz=UTC) returns aware datetime; x.as_local_dt() returns aware local datetime
 
 - Arithmetic (return types preserve class of left operand)

@@ -689,15 +689,12 @@ class TS(BaseTS, float):
         warnings.warn("Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
         return iTSms(self)
 
-    @property
+    @override
     def as_sec(self) -> "iTS":
         """
-        Represents Unix timestamp in MilliSeconds since Epoch
-
-        # ToDo: This will be transformed into the method after few versions, so now this property is deprected
-            For now we can use iTS(ts) which is equivalent
+        Converts to iTS (integer timestamp in seconds).
+        Note: it will round the timestamp to seconds.
         """
-        warnings.warn("Call to deprecated property TS.as_ms", category=DeprecationWarning, stacklevel=2)
         return iTS(self)
 
     @override
