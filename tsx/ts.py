@@ -562,7 +562,7 @@ class BaseTS(ABC, metaclass=ABCMeta):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.isoformat()!r})"
 
-    def __eq__(self, o: object) -> bool:
+    def __eq__(self, o: Union[Number, Self, object],/) -> bool:
         if isinstance(o, BaseTS):
             # we assume microsecond precision for TS since the float doesn't have enough precision for more
             return int.__eq__(self.as_nsec(), o.as_nsec())
@@ -570,10 +570,10 @@ class BaseTS(ABC, metaclass=ABCMeta):
             return abs(float(self) - o) < 1e-6
         return False
 
-    def __ne__(self, o: object) -> bool:
+    def __ne__(self, o: Union[Number, Self, object],/) -> bool:
         return not self.__eq__(o)
 
-    def __lt__(self, o: object) -> bool:
+    def __lt__(self, o: Union[Number, Self, object],/) -> bool:
         if isinstance(o, BaseTS):
             return int.__lt__(self.as_nsec(), o.as_nsec())
         return False
@@ -1167,47 +1167,47 @@ class iBaseTS(BaseTS, int):
     def __int__(self) -> int:
         return round(self)
 
-    def __add__(self, x: Union[Number, timedelta]) -> Self:
+    def __add__(self, x: int|Number|timedelta|Self,/) -> Self:
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(int(self) + delta_units)
         return type(self)(int(self) + x)
 
-    def __radd__(self, x: Union[Number, timedelta]) -> Self:
+    def __radd__(self, x: int|Number|timedelta|Self,/) -> Self:
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(delta_units + int(self))
         return type(self)(x + int(self))
 
-    def __sub__(self, x: Union[Number, timedelta]) -> Self:
+    def __sub__(self, x: int|Number|timedelta|Self,/) -> Self:
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(int(self) - delta_units)
         d = int(self) - x
         return type(self)(d)
 
-    def __rsub__(self, x: Union[Number, timedelta]) -> Self:
+    def __rsub__(self, x: int|Number|timedelta|Self,/) -> Self:
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(delta_units - int(self))
         d = x - int(self)
         return type(self)(d)
 
-    def __lt__(self, o: object) -> bool:
+    def __lt__(self, o: int|Number|BaseTS|Self,/) -> bool:
         if isinstance(o, BaseTS):
             return int.__lt__(self.as_nsec(), o.as_nsec())
-        if isinstance(o, Real):
+        if isinstance(o, Number):
             return int(self) < o
         return False
 
-    def __eq__(self, o: object) -> bool:
+    def __eq__(self, o: int|Number|BaseTS|Self,/) -> bool:
         if isinstance(o, BaseTS):
             return int.__eq__(self.as_nsec(), o.as_nsec())
-        if isinstance(o, Real):
+        if isinstance(o, Number):
             return int.__eq__(int(self), o)
         return False
 
-    def __ne__(self, o: object) -> bool:
+    def __ne__(self, o: int|Number|BaseTS|Self,/) -> bool:
         return not self.__eq__(o)
 
     def __hash__(self) -> int:
@@ -1295,7 +1295,7 @@ class iTSms(iBaseTS):
         if isinstance(ts, TS):
             int_val = round(ts.timestamp() * cls.UNITS_IN_SEC)
             return int.__new__(cls, int_val)
-        if isinstance(ts, (Number, Real)):
+        if isinstance(ts, Number):
             return int.__new__(cls, round(ts))
 
         float_val = cls._parse_to_float(ts, prec="ms", utc=utc)
@@ -1361,7 +1361,7 @@ class iTSus(iBaseTS):
             return int.__new__(cls, int_val)
         if isinstance(ts, Integral):
             return int.__new__(cls, ts)
-        if isinstance(ts, (Number, Real)):
+        if isinstance(ts, Number):
             return int.__new__(cls, round(ts))
         try:
             int_val = cls._parse_iso_to_us_ts(ts, utc=utc)
@@ -1430,7 +1430,7 @@ class iTSns(iBaseTS):
             return ts.as_nsec()
         if isinstance(ts, Integral):
             return int.__new__(cls, ts)
-        if isinstance(ts, (Number, Real)):
+        if isinstance(ts, Number):
             return int.__new__(cls, round(ts))
         if isinstance(ts, str):
             if cls.RE_NS_ISO.match(ts):
