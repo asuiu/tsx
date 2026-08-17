@@ -53,6 +53,7 @@ AVG_DAYS_PER_YEAR = 365.25  # Average considering leap years
 EPOCH_DT = datetime(1970, 1, 1)
 EPOCH_DT_UTC = datetime(1970, 1, 1, tzinfo=timezone.utc)
 SUBSEC_TS_RE = re.compile(r"^(.+\d)\.(\d{1,9})([^0-9].*)?$")
+_DTS_MISSING = object()
 
 
 class dTS:
@@ -63,7 +64,7 @@ class dTS:
     It can be used to represent a delta in months, like 1M, 2M, 3M, etc.
     It can be used to represent a delta in years, like 1Y, 2Y, 3Y, etc.
     """
-    PATTERN_RE = re.compile(r"^(-?\d+)(ms|ns|s|m|h|d|w|M|Y)$")
+    PATTERN_RE = re.compile(r"^(-?\d+)(ms|us|ns|s|m|h|d|w|M|Y)$")
     NS_BY_UNIT = {
         'w':  7 * 24 * 60 * 60 * 1_000_000_000,
         'd':  24 * 60 * 60 * 1_000_000_000,
@@ -76,6 +77,79 @@ class dTS:
     }
 
     __slots__ = ("_delta_ns", "_months")
+
+    def __new__(
+            cls,
+            delta: Union[str, Number, timedelta] = _DTS_MISSING,
+            unit: Optional[Literal['Y', 'M', 'w', 'd', 'h', 'm', 's', 'ms', 'us', 'ns']] = None,
+            *,
+            days: Union[int, float] = 0,
+            seconds: Union[int, float] = 0,
+            microseconds: Union[int, float] = 0,
+            milliseconds: Union[int, float] = 0,
+            minutes: Union[int, float] = 0,
+            hours: Union[int, float] = 0,
+            weeks: Union[int, float] = 0,
+            months: int = 0,
+            years: int = 0,
+    ) -> Self:
+        components = (days, seconds, microseconds, milliseconds, minutes, hours, weeks, months, years)
+        if delta is not _DTS_MISSING and any(component != 0 for component in components):
+            raise TypeError("delta/unit cannot be combined with duration component arguments")
+
+        if delta is _DTS_MISSING:
+            if unit is not None:
+                raise TypeError("unit requires a delta value")
+            if (isinstance(months, bool) or not isinstance(months, Integral)
+                    or isinstance(years, bool) or not isinstance(years, Integral)):
+                raise TypeError("months and years must be integers")
+            fixed_delta = timedelta(
+                days=days,
+                seconds=seconds,
+                microseconds=microseconds,
+                milliseconds=milliseconds,
+                minutes=minutes,
+                hours=hours,
+                weeks=weeks,
+            )
+            delta_ns = cls._timedelta_to_nsec(fixed_delta)
+            calendar_months = int(months) + int(years) * 12
+        elif isinstance(delta, str):
+            match = cls.PATTERN_RE.match(delta)
+            if not match:
+                raise ValueError(f"Invalid delta string: {delta}")
+            value, parsed_unit = match.groups()
+            delta_ns, calendar_months = cls._get_deltas(int(value), parsed_unit)
+        elif isinstance(delta, timedelta):
+            if unit is not None:
+                raise TypeError("unit cannot be used with timedelta")
+            delta_ns = cls._timedelta_to_nsec(delta)
+            calendar_months = 0
+        elif isinstance(delta, Number):
+            parsed_unit = unit or "s"
+            delta_ns, calendar_months = cls._get_deltas(round(delta), parsed_unit)
+        else:
+            raise TypeError(f"delta must be a string, number, or timedelta, got {type(delta)}")
+
+        return cls._from_raw(delta_ns, calendar_months)
+
+    @classmethod
+    def _from_raw(cls, delta_ns: int, months: int) -> Self:
+        self = super().__new__(cls)
+        object.__setattr__(self, "_delta_ns", delta_ns)
+        object.__setattr__(self, "_months", months)
+        return self
+
+    @staticmethod
+    def _timedelta_to_nsec(delta: timedelta) -> int:
+        seconds = delta.days * SECONDS_PER_DAY + delta.seconds
+        return seconds * 1_000_000_000 + delta.microseconds * 1_000
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError(f"{type(self).__name__} instances are immutable")
+
+    def __delattr__(self, name: str) -> None:
+        raise AttributeError(f"{type(self).__name__} instances are immutable")
 
     @classmethod
     def _get_deltas(cls, delta: int, unit: str) -> Tuple[int, int]:
@@ -92,25 +166,6 @@ class dTS:
             return 0, delta * 12
         delta_ns = round(delta * cls.NS_BY_UNIT[unit])
         return delta_ns, 0
-
-    def __init__(self, delta: Union[str, Number, timedelta], unit: Optional[Literal['Y', 'M', 'w', 'd', 'h', 'm', 's', 'ms', 'us', 'ns']] = None) -> None:
-        """
-        :param delta: the delta in the specified unit
-        :param unit: (default: sec) the unit of the delta, if it's not specified, it will be parsed from the delta string
-        """
-        if isinstance(delta, str):
-            m = self.PATTERN_RE.match(delta)
-            if not m:
-                raise ValueError(f"Invalid delta string: {delta}")
-            delta, unit = m.groups()
-            delta = int(delta)
-            self._delta_ns, self._months = self._get_deltas(delta, unit)
-        elif isinstance(delta, timedelta):
-            raise NotImplementedError("timedelta is not supported yet")
-        elif isinstance(delta, Number):
-            unit = unit or "s"
-            delta = round(delta)
-            self._delta_ns, self._months = self._get_deltas(delta, unit)
 
     @staticmethod
     def _add_raw(ts_ns: int, delta_ns: int, months: int) -> int:
@@ -141,23 +196,38 @@ class dTS:
         return self._add_raw(ts_ns, -self._delta_ns, -self._months)
 
     def __str__(self) -> str:
+        parts = []
         if self._months != 0:
-            assert self._delta_ns == 0
             if self._months % 12 == 0:
-                return f"{self._months // 12}Y"
-            return f"{self._months}M"
-        for unit, ns in self.NS_BY_UNIT.items():
-            if self._delta_ns % ns == 0:
-                return f"{self._delta_ns // ns}{unit}"
-        raise RuntimeError(f"dTS class corrupted: dTS(delta_ns={self._delta_ns}, months={self._months})")
+                parts.append(f"{self._months // 12}Y")
+            else:
+                parts.append(f"{self._months}M")
+        if self._delta_ns != 0 or not parts:
+            for unit, ns in self.NS_BY_UNIT.items():
+                if self._delta_ns % ns == 0:
+                    parts.append(f"{self._delta_ns // ns}{unit}")
+                    break
+            else:
+                raise RuntimeError(
+                    f"dTS class corrupted: dTS(delta_ns={self._delta_ns}, months={self._months})"
+                )
+        return "+".join(parts)
 
     def __repr__(self) -> str:
+        if self._months != 0 and self._delta_ns != 0:
+            return f"{self.__class__.__name__}._from_raw({self._delta_ns}, {self._months})"
         return f'{self.__class__.__name__}("{self.__str__()}")'
 
     def __eq__(self, o: "dTS") -> bool:
         if not isinstance(o, dTS):
             return False
         return self._months == o._months and self._delta_ns == o._delta_ns
+
+    def __hash__(self) -> int:
+        return hash((self._delta_ns, self._months))
+
+    def __reduce__(self):
+        return type(self)._from_raw, (self._delta_ns, self._months)
 
     def _assert_scalar_ns(self) -> int:
         if self._months != 0:
@@ -184,6 +254,8 @@ class dTS:
         return self.__add__(other)
 
     def __add__(self, other):
+        if isinstance(other, BaseTS):
+            return other + self
         return self._add(other)
 
 
@@ -1167,19 +1239,36 @@ class iBaseTS(BaseTS, int):
     def __int__(self) -> int:
         return round(self)
 
-    def __add__(self, x: int|Number|timedelta|Self,/) -> Self:
+    @classmethod
+    def _from_nsec(cls, ts_ns: int) -> Self:
+        """Convert nanoseconds to this class' precision with exact half-even rounding."""
+        quotient, remainder = divmod(ts_ns, cls.NANOS_PER_UNIT)
+        doubled_remainder = remainder * 2
+        if doubled_remainder > cls.NANOS_PER_UNIT or (
+                doubled_remainder == cls.NANOS_PER_UNIT and quotient % 2
+        ):
+            quotient += 1
+        return cls(quotient)
+
+    def __add__(self, x: int|Number|dTS|timedelta|Self,/) -> Self:
+        if isinstance(x, dTS):
+            return type(self)._from_nsec(x._add(int(self.as_nsec())))
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(int(self) + delta_units)
         return type(self)(int(self) + x)
 
-    def __radd__(self, x: int|Number|timedelta|Self,/) -> Self:
+    def __radd__(self, x: int|Number|dTS|timedelta|Self,/) -> Self:
+        if isinstance(x, dTS):
+            return self.__add__(x)
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(delta_units + int(self))
         return type(self)(x + int(self))
 
-    def __sub__(self, x: int|Number|timedelta|Self,/) -> Self:
+    def __sub__(self, x: int|Number|dTS|timedelta|Self,/) -> Self:
+        if isinstance(x, dTS):
+            return type(self)._from_nsec(x._sub(int(self.as_nsec())))
         if isinstance(x, timedelta):
             delta_units = round(x.total_seconds() * self.UNITS_IN_SEC)
             return type(self)(int(self) - delta_units)

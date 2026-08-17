@@ -274,11 +274,6 @@ The TS class, a subclass of float, represents Unix timestamps in seconds. It inc
       ts.weekday() == 4
       ```
 
-##### 0.2.1
-- Added datetime.timedelta arithmetic support for TS and all integer timestamp classes (iTS, iTSms, iTSus, iTSns). Integer classes round td to their unit with Python round().
-- Added comprehensive unit tests, including precision-aware verification.
-
-
 - **Description**: Return the day of the week as an integer, where Monday is 1 and Sunday is 7. See also weekday().
     - **Parameters**:
         - `utc: bool = True`: Whether to use UTC or local time.
@@ -339,110 +334,24 @@ After instantiation, the TSMsec instance is identical to TS instance, and it inc
 - It's identical to `TS` class, but all the methods that are expected to return `TS` will return `iTSns` instead, excepting the timestamp(), which returns `TS`.
 - **Note**: `iTSns` supports nanosecond values for storage/formatting/arithmetics (timedelta limited to microsecond resolution). ISO formatting prints nanoseconds and appends `Z`.
 
+### `dTS`
+
+`dTS` is an immutable duration with both fixed and calendar components. It supports the existing compact/scalar interface, Python `timedelta`, and timedelta-style keyword arguments extended with integer `months` and `years`:
+
+```python
+from datetime import timedelta
+from tsx.ts import dTS
+
+dTS("7d")
+dTS(7, unit="d")
+dTS(timedelta(days=7, seconds=30))
+dTS(weeks=1, hours=2, microseconds=3)
+dTS(years=1, months=2)
+dTS(months=1, days=2)  # calendar adjustment, then fixed-duration adjustment
+```
+
+The positional `delta/unit` form and component keyword form cannot be mixed. Calendar months and years must be integers. All timestamp classes support `timestamp + delta`, `delta + timestamp`, and `timestamp - delta`, preserving the timestamp class and its native precision.
+
 ### Changelog
 
-##### 0.2.0
-- The iTSns now has real nanosecond precision (no roundings/approximations) by using the numpy.datetime64 class
-- Added the dependency on numpy >=1.8.0 for ns precision
-
-##### 0.1.16
-- Fixed bug in iTS().__sub__ when performed operations with floats or other TS instances
-
-##### 0.1.15
-- TS.as_dt() now is able to properly handle the big dates (year > 2038), which are causing overflow exceptions in Python datetime.fromtimestamp() stdlib functions
-- Added instantiation from Python datetime and date objects + proper handling of big dates (year > 2038)
-
-##### 0.1.14
-- TS.now() offers nanosecond precision instead of millisecond
-
-##### 0.1.13
-- TypeHint update: `TS.as_ms()` now returns `iTSms` instead of simple `int`
-- Added more documentation to README.md
-
-##### 0.1.12
-
-- Added dTS object
-
-##### 0.1.11
-
-- fixed the pickling/unpickling of TSMsec objects by instantiating the TSMsec as actually an instance of TS
-
-##### 0.1.10
-
-- upgrade dependency ciso8601 2.3.0 -> 2.3.1
-
-##### 0.1.9
-
-- Fixed bug in TS.__sub__ and TS.__add__ introduced in 0.1.7
-
-##### 0.1.8
-
-- Added TS.to_sec as temporary alias for TS.as_sec
-
-##### 0.1.7
-
-- Added iTS, iTSms, iTSus, iTSns classes.
-- deprecated TS.as_msec and TS.as_sec
-- No breaking changes yet
-
-##### 0.1.6
-
-- Fixed bug in TSMsec from TSMsec initialization
-
-##### 0.1.5
-
-- Fixed bug in parsing with date_util the Truncated formats with no TZ info
-
-##### 0.1.4
-
-- Exporting FIRST_MONDAY_TS, DAY_SEC, DAY_MSEC, WEEK_SEC into tsx public space
-
-##### 0.1.3
-
-- Fixed bug in TSMsec(<ISO_STRING>)
-
-##### 0.1.2
-
-- Added as_dt() and as_local_dt() methods
-
-##### 0.1.1
-
-- fixed bug in converting from numpy numbers
-
-##### 0.1.0
-
-- Added the `utc:bool=True` parameter to TS constructor, which if set to `True` (by default) will force the timestamp to
-  be interpreted as UTC, thus `TS('2018-02-28T22:00:00') will be interpreted as UTC, and not as local time, even if it
-  doesn't have explicit TZ info.
-- Improved speed of TS.from_iso(). For Python <3.11 it uses [`ciso8601`](https://github.com/closeio/ciso8601) which is
-  the fastest ISO 8601 parser, and for Python >= 3.11 it uses the builtin `datetime.fromisoformat()`.
-- some minor parsing speed improvements
-- added public time utility variables `FIRST_MONDAY_TS`, `DAY_SEC`, `DAY_MSEC`, `WEEK_SEC`
-
-##### 0.0.9
-
-- str(ts) now returns ts.as_iso
-
-##### 0.0.8
-
-- added weekday() + isoweekday()
-
-##### 0.0.7
-
-- added floor() and ceil() methods
-
-##### 0.0.6
-
-- added TS.as_iso_date_basic and as_iso_basic
-
-##### 0.0.5
-
-- added TS.from_iso()
-
-##### 0.0.4
-
-- added return typehint to TS.now()
-
-##### 0.0.3
-
-- Lower the minimal typing-extensions version
+See the complete release history in [CHANGELOG.md](CHANGELOG.md).

@@ -840,6 +840,114 @@ class Test_iTS(TestCase):
 
 
 class Test_dTS(TestCase):
+    TS_CLASSES = (TS, TSMsec, iTS, iTSms, iTSus, iTSns)
+
+    def test_is_immutable_hashable_and_picklable(self):
+        delta = dTS(months=1, days=7)
+
+        with self.assertRaises(AttributeError):
+            delta._delta_ns = 0
+        with self.assertRaises(AttributeError):
+            delta._months = 1
+        with self.assertRaises(AttributeError):
+            del delta._delta_ns
+
+        self.assertEqual(hash(delta), hash(dTS(months=1, days=7)))
+        self.assertEqual(pickle.loads(pickle.dumps(delta)), delta)
+        self.assertEqual(eval(repr(delta)), delta)
+
+    def test_invalid_type_fails_during_construction(self):
+        with self.assertRaises(TypeError):
+            dTS(object())
+
+    def test_timedelta_compatible_component_interface(self):
+        delta = dTS(
+            days=1,
+            seconds=2,
+            microseconds=3,
+            milliseconds=4,
+            minutes=5,
+            hours=6,
+            weeks=1,
+            months=2,
+            years=1,
+        )
+        fixed_delta = timedelta(
+            days=1,
+            seconds=2,
+            microseconds=3,
+            milliseconds=4,
+            minutes=5,
+            hours=6,
+            weeks=1,
+        )
+
+        self.assertEqual(delta._months, 14)
+        self.assertEqual(
+            delta._delta_ns,
+            (fixed_delta.days * 86_400 + fixed_delta.seconds) * 1_000_000_000
+            + fixed_delta.microseconds * 1_000,
+        )
+        self.assertEqual(dTS(fixed_delta), dTS(
+            days=fixed_delta.days,
+            seconds=fixed_delta.seconds,
+            microseconds=fixed_delta.microseconds,
+        ))
+        self.assertEqual(dTS(seconds=0.1), dTS(100, unit="ms"))
+        self.assertEqual(dTS(), dTS(0))
+        self.assertEqual(dTS("1us"), dTS(microseconds=1))
+
+    def test_component_interface_rejects_ambiguous_or_fractional_calendar_values(self):
+        with self.assertRaises(TypeError):
+            dTS("1d", hours=1)
+        with self.assertRaises(TypeError):
+            dTS(1, unit="d", months=1)
+        with self.assertRaises(TypeError):
+            dTS(unit="d")
+        with self.assertRaises(TypeError):
+            dTS(months=1.5)
+        with self.assertRaises(TypeError):
+            dTS(years=True)
+
+    def test_fixed_delta_arithmetic_with_all_timestamp_classes(self):
+        delta = dTS("7d")
+        for cls in self.TS_CLASSES:
+            with self.subTest(cls=cls.__name__):
+                ts = cls("2026-08-17T12:34:56.123456789Z")
+                expected_after = cls("2026-08-24T12:34:56.123456789Z")
+                expected_before = cls("2026-08-10T12:34:56.123456789Z")
+
+                self.assertEqual(ts + delta, expected_after)
+                self.assertIsInstance(ts + delta, type(ts))
+                self.assertEqual(delta + ts, expected_after)
+                self.assertIsInstance(delta + ts, type(ts))
+                self.assertEqual(ts - delta, expected_before)
+                self.assertIsInstance(ts - delta, type(ts))
+
+    def test_calendar_delta_arithmetic_with_all_timestamp_classes(self):
+        delta = dTS("1M")
+        for cls in self.TS_CLASSES:
+            with self.subTest(cls=cls.__name__):
+                ts = cls("2024-01-31T12:34:56.123456789Z")
+                expected_after = cls("2024-02-29T12:34:56.123456789Z")
+                expected_before = cls("2023-12-31T12:34:56.123456789Z")
+
+                self.assertEqual(ts + delta, expected_after)
+                self.assertEqual(delta + ts, expected_after)
+                self.assertEqual(ts - delta, expected_before)
+
+    def test_mixed_calendar_and_fixed_delta_with_all_timestamp_classes(self):
+        delta = dTS(months=1, days=2, hours=3)
+        for cls in self.TS_CLASSES:
+            with self.subTest(cls=cls.__name__):
+                ts = cls("2024-01-15T12:34:56.123456789Z")
+                expected_after = cls("2024-02-17T15:34:56.123456789Z")
+                expected_before = cls("2023-12-13T09:34:56.123456789Z")
+
+                self.assertEqual(ts + delta, expected_after)
+                self.assertEqual(delta + ts, expected_after)
+                self.assertEqual(ts - delta, expected_before)
+
     def test_delta_round_float(self):
         ts = TS("2022-12-07T00:00:00.123456Z")
         ts_plus = ts + dTS(10.1)
@@ -1997,6 +2105,26 @@ class TestTSInterval(TestCase):
         shifted = self.interval1.shift(timedelta(hours=2))
         self.assertAlmostEqual(float(shifted.start), float(self.ts1) + 7200, places=6)
         self.assertAlmostEqual(float(shifted.end), float(self.ts2) + 7200, places=6)
+
+    def test_dts_arithmetic_with_all_integer_timestamp_precisions(self):
+        for cls in (iTS, iTSms, iTSus, iTSns):
+            with self.subTest(cls=cls.__name__):
+                interval = TSInterval(
+                    cls("2026-08-17T00:00:00.123456789Z"),
+                    cls("2026-08-18T00:00:00.123456789Z"),
+                )
+
+                shifted = interval.shift(dTS("7d"))
+                self.assertEqual(shifted.start, cls("2026-08-24T00:00:00.123456789Z"))
+                self.assertEqual(shifted.end, cls("2026-08-25T00:00:00.123456789Z"))
+
+                expanded = interval.expand(before=dTS("1h"), after=dTS("2h"))
+                self.assertEqual(expanded.start, cls("2026-08-16T23:00:00.123456789Z"))
+                self.assertEqual(expanded.end, cls("2026-08-18T02:00:00.123456789Z"))
+
+                shrunk = interval.shrink(from_start=dTS("1h"), from_end=dTS("2h"))
+                self.assertEqual(shrunk.start, cls("2026-08-17T01:00:00.123456789Z"))
+                self.assertEqual(shrunk.end, cls("2026-08-17T22:00:00.123456789Z"))
 
     def test_expand_before(self):
         """Test expanding interval before start"""
